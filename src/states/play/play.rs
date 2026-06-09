@@ -5,7 +5,7 @@ use crate::{
         GameState,
         play::shepherd::{move_camera, move_shepherd, setup_shepherd},
     },
-    world::{TileMap, create_world, draw_world},
+    world::{MapConfig, TileMap, WorldBounds, create_world, draw_world},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Hash, States)]
@@ -16,14 +16,18 @@ enum PlayState {
 }
 
 pub fn play_state_plugin(app: &mut App) {
+    let map_config = MapConfig::default();
+
     app.init_state::<PlayState>()
-        .insert_resource(TileMap::new(8, 4))
+        .insert_resource(map_config)
+        .insert_resource(TileMap::from(&map_config))
+        .insert_resource(WorldBounds::from(&map_config))
         .add_systems(OnEnter(GameState::Play), setup_play_state)
         .add_systems(
             OnEnter(PlayState::Playing),
             (create_world, draw_world, setup_shepherd).chain(),
         )
-        .add_systems(FixedUpdate, (move_shepherd, move_camera));
+        .add_systems(FixedUpdate, (move_shepherd, move_camera).chain());
 }
 
 fn setup_play_state(mut game_state: ResMut<NextState<PlayState>>) {

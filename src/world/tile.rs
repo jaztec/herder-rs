@@ -1,5 +1,60 @@
 use bevy::prelude::*;
 
+pub const DEFAULT_MAP_WIDTH: usize = 24;
+pub const DEFAULT_MAP_HEIGHT: usize = 18;
+pub const DEFAULT_TILE_SIZE: f32 = 150.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Resource)]
+pub struct MapConfig {
+    pub width: usize,
+    pub height: usize,
+    pub tile_size: f32,
+}
+
+impl Default for MapConfig {
+    fn default() -> Self {
+        Self {
+            width: DEFAULT_MAP_WIDTH,
+            height: DEFAULT_MAP_HEIGHT,
+            tile_size: DEFAULT_TILE_SIZE,
+        }
+    }
+}
+
+impl MapConfig {
+    pub fn world_size(&self) -> Vec2 {
+        Vec2::new(
+            self.width as f32 * self.tile_size,
+            self.height as f32 * self.tile_size,
+        )
+    }
+
+    pub fn tile_world_position(&self, x: usize, y: usize) -> Vec3 {
+        let world_size = self.world_size();
+        let left = -world_size.x / 2.0;
+        let top = world_size.y / 2.0;
+
+        Vec3::new(
+            left + self.tile_size * (x as f32 + 0.5),
+            top - self.tile_size * (y as f32 + 0.5),
+            0.0,
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Resource)]
+pub struct WorldBounds {
+    pub size: Vec2,
+}
+
+impl From<&MapConfig> for WorldBounds {
+    fn from(config: &MapConfig) -> Self {
+        Self {
+            size: config.world_size(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Resource)]
 pub struct TileMap {
     tiles: Vec<Vec<Tile>>,
@@ -45,6 +100,21 @@ impl TileMap {
         self.height
     }
 }
+
+impl From<&MapConfig> for TileMap {
+    fn from(config: &MapConfig) -> Self {
+        Self::new(config.width, config.height)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+pub struct GridPosition {
+    pub x: usize,
+    pub y: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+pub struct WorldTile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Component)]
 #[repr(u8)]
