@@ -2,7 +2,9 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
 use crate::{
-    states::play::common::{Facing, FacingDirection, Velocity, load_texture},
+    states::play::common::{
+        AnimationFrames, AnimationTimer, Facing, FacingDirection, Moving, Velocity, load_texture,
+    },
     world::WorldBounds,
 };
 
@@ -10,6 +12,16 @@ pub const SHEPHERD_NAME: &str = "Shepherd";
 pub const SHEPHERD_SPEED: f32 = 260.0;
 pub const SHEPHERD_WIDTH: u32 = 50;
 pub const SHEPHERD_HEIGHT: u32 = 75;
+
+const SHEPHERD_ANIMATION_FRAME_TIME: f32 = 0.08;
+const SHEPHERD_STAND_DOWN: usize = 0;
+const SHEPHERD_STAND_UP: usize = 1;
+const SHEPHERD_STAND_RIGHT: usize = 2;
+const SHEPHERD_STAND_LEFT: usize = 3;
+const SHEPHERD_WALK_RIGHT: AnimationFrames = AnimationFrames::range(4, 7);
+const SHEPHERD_WALK_LEFT: AnimationFrames = AnimationFrames::range(8, 11);
+const SHEPHERD_WALK_DOWN: AnimationFrames = AnimationFrames::range(12, 15);
+const SHEPHERD_WALK_UP: AnimationFrames = AnimationFrames::range(16, 19);
 
 #[derive(Component)]
 pub struct Shepherd;
@@ -29,12 +41,15 @@ pub fn setup_shepherd(
         },
     );
 
+    let mut texture_atlas = TextureAtlas::from(atlas);
+    texture_atlas.index = SHEPHERD_STAND_RIGHT;
+
     commands.spawn((
         Name::new(SHEPHERD_NAME),
         Shepherd,
         Sprite {
             custom_size: Some(Vec2::new(SHEPHERD_WIDTH as f32, SHEPHERD_HEIGHT as f32)),
-            ..Sprite::from_atlas_image(handle, TextureAtlas::from(atlas))
+            ..Sprite::from_atlas_image(handle, texture_atlas)
         },
         Transform::from_xyz(0.0, 0.0, 10.0),
         Velocity {
@@ -43,11 +58,16 @@ pub fn setup_shepherd(
         Facing {
             direction: FacingDirection::Right,
         },
+        Moving { is_moving: false },
+        AnimationFrames::single(SHEPHERD_STAND_RIGHT),
+        AnimationTimer {
+            timer: Timer::from_seconds(SHEPHERD_ANIMATION_FRAME_TIME, TimerMode::Repeating),
+        },
     ));
 }
 
 pub fn move_shepherd(
-    mut shepherd: Single<(&mut Transform, &Velocity, &mut Facing), With<Shepherd>>,
+    mut shepherd: Single<(&mut Transform, &Velocity, &mut Facing, &mut Moving), With<Shepherd>>,
     input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     bounds: Res<WorldBounds>,
@@ -71,6 +91,8 @@ pub fn move_shepherd(
         shepherd.2.direction = FacingDirection::Down;
     }
 
+    shepherd.3.is_moving = velocity.length_squared() > 0.0;
+
     let move_delta = velocity.normalize_or_zero() * shepherd.1.speed * time.delta_secs();
     shepherd.0.translation += move_delta.extend(0.);
 
@@ -86,6 +108,58 @@ pub fn move_shepherd(
         .translation
         .y
         .clamp(-half_world.y + half_size.y, half_world.y - half_size.y);
+}
+
+pub fn update_shepherd_animation_range(
+    mut shepherd: Single<(&Facing, &Moving, &mut AnimationFrames, &mut Sprite), With<Shepherd>>,
+) {
+    let frames = if shepherd.1.is_moving {
+        match shepherd.0.direction {
+            FacingDirection::Right => SHEPHERD_WALK_RIGHT,
+            FacingDirection::Left => SHEPHERD_WALK_LEFT,
+            FacingDirection::Down => SHEPHERD_WALK_DOWN,
+            FacingDirection::Up => SHEPHERD_WALK_UP,
+        }
+    } else {
+        AnimationFrames::single(match shepherd.0.direction {
+            FacingDirection::Right => SHEPHERD_STAND_RIGHT,
+            FacingDirection::Left => SHEPHERD_STAND_LEFT,
+            FacingDirection::Down => SHEPHERD_STAND_DOWN,
+            FacingDirection::Up => SHEPHERD_STAND_UP,
+        })
+    };
+
+    if *shepherd.2 != frames {
+        *shepherd.2 = frames;
+        if let Some(atlas) = &mut shepherd.3.texture_atlas {
+            atlas.index = frames.first;
+        }
+    }
+}
+
+pub fn animate_shepherd(
+    time: Res<Time>,
+    mut shepherd: Single<(&mut Sprite, &AnimationFrames, &mut AnimationTimer), With<Shepherd>>,
+) {
+    if shepherd.1.first == shepherd.1.last {
+        return;
+    }
+
+    shepherd.2.timer.tick(time.delta());
+
+    if !shepherd.2.timer.just_finished() {
+        return;
+    }
+
+    let first = shepherd.1.first;
+    let last = shepherd.1.last;
+    if let Some(atlas) = &mut shepherd.0.texture_atlas {
+        atlas.index = if atlas.index < first || atlas.index >= last {
+            first
+        } else {
+            atlas.index + 1
+        };
+    }
 }
 
 pub fn move_camera(

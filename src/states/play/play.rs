@@ -3,7 +3,10 @@ use bevy::prelude::*;
 use crate::{
     states::{
         GameState,
-        play::shepherd::{move_camera, move_shepherd, setup_shepherd},
+        play::shepherd::{
+            animate_shepherd, move_camera, move_shepherd, setup_shepherd,
+            update_shepherd_animation_range,
+        },
     },
     world::{MapConfig, TileMap, WorldBounds, create_world, draw_world},
 };
@@ -27,7 +30,16 @@ pub fn play_state_plugin(app: &mut App) {
             OnEnter(PlayState::Playing),
             (create_world, draw_world, setup_shepherd).chain(),
         )
-        .add_systems(FixedUpdate, (move_shepherd, move_camera).chain());
+        .add_systems(
+            FixedUpdate,
+            (
+                move_shepherd,
+                update_shepherd_animation_range,
+                animate_shepherd,
+                move_camera,
+            )
+                .chain(),
+        );
 }
 
 fn setup_play_state(mut game_state: ResMut<NextState<PlayState>>) {

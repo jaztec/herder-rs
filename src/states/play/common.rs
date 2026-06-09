@@ -62,3 +62,32 @@ pub struct Velocity {
 pub struct Facing {
     pub direction: FacingDirection,
 }
+
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Moving {
+    pub is_moving: bool,
+}
+
+#[derive(Component, Debug)]
+pub struct AnimationTimer {
+    pub timer: Timer,
+}
+
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnimationFrames {
+    pub first: usize,
+    pub last: usize,
+}
+
+impl AnimationFrames {
+    pub const fn single(index: usize) -> Self {
+        Self {
+            first: index,
+            last: index,
+        }
+    }
+
+    pub const fn range(first: usize, last: usize) -> Self {
+        Self { first, last }
+    }
+}
