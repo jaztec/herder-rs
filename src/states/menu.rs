@@ -28,12 +28,25 @@ enum MenuButtonAction {
 #[derive(Component)]
 struct SelectedOption;
 
-fn button_system(
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, Option<&SelectedOption>),
-        (Changed<Interaction>, With<Button>),
-    >,
-) {
+type ButtonStyleQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Interaction,
+        &'static mut BackgroundColor,
+        Option<&'static SelectedOption>,
+    ),
+    (Changed<Interaction>, With<Button>),
+>;
+
+type MenuActionQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Interaction, &'static MenuButtonAction),
+    (Changed<Interaction>, With<Button>),
+>;
+
+fn button_system(mut interaction_query: ButtonStyleQuery) {
     for (interaction, mut background_color, selected) in &mut interaction_query {
         *background_color = match (*interaction, selected) {
             (Interaction::Pressed, _) | (Interaction::None, Some(_)) => PRESSED_BUTTON.into(),
@@ -128,10 +141,7 @@ fn main_setup(mut commands: Commands) {
 }
 
 fn menu_action(
-    interaction_query: Query<
-        (&Interaction, &MenuButtonAction),
-        (Changed<Interaction>, With<Button>),
-    >,
+    interaction_query: MenuActionQuery,
     mut app_exit_events: EventWriter<AppExit>,
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,

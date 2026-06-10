@@ -2,38 +2,11 @@ use bevy::prelude::*;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(u8)]
-pub enum MovementDirection {
-    Right = 5,
-    Left = 10,
-    Down = 15,
-    Up = 20,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[repr(u8)]
 pub enum FacingDirection {
     Right,
     Left,
     Down,
     Up,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[repr(u8)]
-pub enum MovementFrame {
-    First,
-    Second,
-    Third,
-    Fourth,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[repr(u8)]
-pub enum Standing {
-    Down,
-    Up,
-    Right,
-    Left,
 }
 
 /// Load a texture and its corresponding texture atlas layout.

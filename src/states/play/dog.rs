@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
-use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
     states::play::{
@@ -123,17 +123,30 @@ pub fn setup_dog_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-pub fn handle_dog_route_input(
-    mut commands: Commands,
-    buttons: Res<ButtonInput<MouseButton>>,
-    window: Single<&Window, With<PrimaryWindow>>,
-    camera: Single<(&Camera, &GlobalTransform), With<Camera2d>>,
-    asset_server: Res<AssetServer>,
-    bounds: Res<WorldBounds>,
-    mut route: ResMut<DogRoute>,
-    mut dog_mode: Single<&mut DogMode, With<Dog>>,
-    dog_audio: Res<DogAudio>,
-) {
+#[derive(SystemParam)]
+pub struct DogRouteInputParams<'w> {
+    buttons: Res<'w, ButtonInput<MouseButton>>,
+    window: Single<'w, &'static Window, With<PrimaryWindow>>,
+    camera: Single<'w, (&'static Camera, &'static GlobalTransform), With<Camera2d>>,
+    asset_server: Res<'w, AssetServer>,
+    bounds: Res<'w, WorldBounds>,
+    route: ResMut<'w, DogRoute>,
+    dog_mode: Single<'w, &'static mut DogMode, With<Dog>>,
+    dog_audio: Res<'w, DogAudio>,
+}
+
+pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams) {
+    let DogRouteInputParams {
+        buttons,
+        window,
+        camera,
+        asset_server,
+        bounds,
+        mut route,
+        mut dog_mode,
+        dog_audio,
+    } = input;
+
     if buttons.just_pressed(MouseButton::Left) {
         clear_route(&mut commands, &mut route);
         route.is_drawing = true;
@@ -150,17 +163,18 @@ pub fn handle_dog_route_input(
         }
     }
 
-    if buttons.pressed(MouseButton::Left) && route.is_drawing {
-        if let Some(position) = cursor_world_position(&window, &camera) {
-            add_waypoint(
-                &mut commands,
-                &asset_server,
-                &bounds,
-                &mut route,
-                position,
-                false,
-            );
-        }
+    if buttons.pressed(MouseButton::Left)
+        && route.is_drawing
+        && let Some(position) = cursor_world_position(&window, &camera)
+    {
+        add_waypoint(
+            &mut commands,
+            &asset_server,
+            &bounds,
+            &mut route,
+            position,
+            false,
+        );
     }
 
     if buttons.just_released(MouseButton::Left) && route.is_drawing {

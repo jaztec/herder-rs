@@ -81,10 +81,10 @@ impl TileMap {
     where
         T: Into<Tile>,
     {
-        if let Some(row) = self.tiles.get_mut(y) {
-            if let Some(tile_cell) = row.get_mut(x) {
-                *tile_cell = tile.into();
-            }
+        if let Some(row) = self.tiles.get_mut(y)
+            && let Some(tile_cell) = row.get_mut(x)
+        {
+            *tile_cell = tile.into();
         }
     }
 

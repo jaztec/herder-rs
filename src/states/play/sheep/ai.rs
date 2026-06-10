@@ -26,13 +26,44 @@ struct SheepSnapshot {
     panic: SheepPanic,
 }
 
+type DogTransformQuery<'w, 's> =
+    Query<'w, 's, &'static Transform, (With<Dog>, Without<Sheep>, Without<Shepherd>)>;
+
+type SheepSnapshotQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static Transform,
+        &'static Bravery,
+        &'static SheepPanic,
+    ),
+    With<Sheep>,
+>;
+
+type SheepPanicQuery<'w, 's> = Query<'w, 's, &'static mut SheepPanic, With<Sheep>>;
+
+type SheepSteeringQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static Transform,
+        &'static Bravery,
+        &'static SheepPanic,
+        &'static mut SheepMotion,
+        &'static mut Wander,
+    ),
+    With<Sheep>,
+>;
+
 pub(in crate::states::play) fn sense_sheep_threats(
     mut commands: Commands,
     time: Res<Time>,
     audio: Res<SheepAudio>,
     mut sound_state: ResMut<SheepSoundState>,
     shepherd: Query<&Transform, (With<Shepherd>, Without<Sheep>)>,
-    dog: Query<&Transform, (With<Dog>, Without<Sheep>, Without<Shepherd>)>,
+    dog: DogTransformQuery,
     mut sheep: Query<(&Transform, &mut SheepPanic), With<Sheep>>,
 ) {
     sound_state.scare_cooldown = (sound_state.scare_cooldown - time.delta_secs()).max(0.0);
@@ -72,20 +103,17 @@ pub(in crate::states::play) fn sense_sheep_threats(
             );
         }
 
-        if let Some((direction, intensity, sound)) = strongest {
-            if !fear.active() || !fear.propagated || intensity >= fear.intensity {
-                fear.set(direction, intensity, DIRECT_PANIC_DURATION, false);
-                play_scare_sound(&mut commands, &audio, &mut sound_state, sound);
-            }
+        if let Some((direction, intensity, sound)) = strongest
+            && (!fear.active() || !fear.propagated || intensity >= fear.intensity)
+        {
+            fear.set(direction, intensity, DIRECT_PANIC_DURATION, false);
+            play_scare_sound(&mut commands, &audio, &mut sound_state, sound);
         }
     }
 }
 
 pub(in crate::states::play) fn propagate_sheep_panic(
-    mut sheep: ParamSet<(
-        Query<(Entity, &Transform, &Bravery, &SheepPanic), With<Sheep>>,
-        Query<&mut SheepPanic, With<Sheep>>,
-    )>,
+    mut sheep: ParamSet<(SheepSnapshotQuery, SheepPanicQuery)>,
 ) {
     let snapshots = sheep
         .p0()
@@ -107,35 +135,22 @@ pub(in crate::states::play) fn propagate_sheep_panic(
             continue;
         };
 
-        if let Ok(mut fear) = sheep.p1().get_mut(candidate.entity) {
-            if !fear.active() || fear.propagated || intensity > fear.strength() {
-                fear.set(
-                    leader.panic.direction,
-                    intensity,
-                    PROPAGATED_PANIC_DURATION,
-                    true,
-                );
-            }
+        if let Ok(mut fear) = sheep.p1().get_mut(candidate.entity)
+            && (!fear.active() || fear.propagated || intensity > fear.strength())
+        {
+            fear.set(
+                leader.panic.direction,
+                intensity,
+                PROPAGATED_PANIC_DURATION,
+                true,
+            );
         }
     }
 }
 
 pub(in crate::states::play) fn steer_sheep(
     time: Res<Time>,
-    mut sheep: ParamSet<(
-        Query<(Entity, &Transform, &Bravery, &SheepPanic), With<Sheep>>,
-        Query<
-            (
-                Entity,
-                &Transform,
-                &Bravery,
-                &SheepPanic,
-                &mut SheepMotion,
-                &mut Wander,
-            ),
-            With<Sheep>,
-        >,
-    )>,
+    mut sheep: ParamSet<(SheepSnapshotQuery, SheepSteeringQuery)>,
 ) {
     let snapshots = sheep
         .p0()
@@ -247,12 +262,12 @@ fn find_panicked_leader<'a>(
         .max_by(|(_, left), (_, right)| left.total_cmp(right))
 }
 
-fn find_calm_leader<'a>(
+fn find_calm_leader(
     entity: Entity,
     position: Vec2,
     bravery: f32,
-    snapshots: &'a [SheepSnapshot],
-) -> Option<&'a SheepSnapshot> {
+    snapshots: &[SheepSnapshot],
+) -> Option<&SheepSnapshot> {
     if bravery >= LEADER_BRAVERY_THRESHOLD {
         return None;
     }
