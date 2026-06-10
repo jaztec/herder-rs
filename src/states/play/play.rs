@@ -8,8 +8,11 @@ use crate::{
                 DogRoute, animate_dog, handle_dog_route_input, move_dog, setup_dog,
                 setup_dog_audio, update_dog_animation_range,
             },
+            score::{
+                HerdScore, setup_finish_area, setup_herd_score, setup_score_hud, update_score_hud,
+            },
             sheep::{
-                animate_sheep, decay_sheep_panic, move_sheep, play_idle_sheep_sounds,
+                animate_sheep, decay_sheep_panic, finish_sheep, move_sheep, play_idle_sheep_sounds,
                 propagate_sheep_panic, sense_sheep_threats, setup_herd, setup_sheep_audio,
                 steer_sheep, update_sheep_animation_range,
             },
@@ -37,12 +40,16 @@ pub fn play_state_plugin(app: &mut App) {
         .insert_resource(TileMap::from(&map_config))
         .insert_resource(WorldBounds::from(&map_config))
         .init_resource::<DogRoute>()
+        .init_resource::<HerdScore>()
         .add_systems(OnEnter(GameState::Play), setup_play_state)
         .add_systems(
             OnEnter(PlayState::Playing),
             (
                 create_world,
+                setup_finish_area,
+                setup_herd_score,
                 draw_world,
+                setup_score_hud,
                 setup_shepherd,
                 setup_dog,
                 setup_dog_audio,
@@ -65,6 +72,7 @@ pub fn play_state_plugin(app: &mut App) {
                 steer_sheep,
                 decay_sheep_panic,
                 move_sheep,
+                finish_sheep,
                 update_shepherd_animation_range,
                 update_dog_animation_range,
                 update_sheep_animation_range,
@@ -72,6 +80,7 @@ pub fn play_state_plugin(app: &mut App) {
                 animate_dog,
                 animate_sheep,
                 play_idle_sheep_sounds,
+                update_score_hud,
                 move_camera,
             )
                 .chain()

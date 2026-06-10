@@ -8,6 +8,7 @@ use crate::{
         common::{AnimationFrames, AnimationTimer, Facing, FacingDirection, Moving, load_texture},
         dog::Dog,
         herd::Herd,
+        score::{FinishArea, HerdScore},
         shepherd::Shepherd,
     },
     world::WorldBounds,
@@ -16,7 +17,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Component)]
 pub struct Sheep;
 
-const SHEEP_COUNT: usize = 30;
+pub(super) const SHEEP_COUNT: usize = 30;
 const SHEEP_NAME: &str = "Sheep";
 const SHEEP_WIDTH: u32 = 75;
 const SHEEP_HEIGHT: u32 = 60;
@@ -141,6 +142,7 @@ struct SheepSnapshot {
 pub(super) struct SheepAudio {
     bleat_1: Handle<AudioSource>,
     bleat_2: Handle<AudioSource>,
+    finish: Handle<AudioSource>,
 }
 
 #[derive(Debug, Resource)]
@@ -153,12 +155,14 @@ pub(super) struct SheepSoundState {
 enum SheepSoundKind {
     Bleat1,
     Bleat2,
+    Finish,
 }
 
 pub fn setup_sheep_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(SheepAudio {
         bleat_1: asset_server.load("sounds/beh_1.ogg"),
         bleat_2: asset_server.load("sounds/beh_2.ogg"),
+        finish: asset_server.load("sounds/finish.ogg"),
     });
 
     commands.insert_resource(SheepSoundState {
@@ -420,6 +424,25 @@ pub fn move_sheep(
     }
 }
 
+pub fn finish_sheep(
+    mut commands: Commands,
+    time: Res<Time>,
+    finish_area: Res<FinishArea>,
+    audio: Res<SheepAudio>,
+    mut score: ResMut<HerdScore>,
+    sheep: Query<(Entity, &Transform), With<Sheep>>,
+) {
+    for (entity, transform) in &sheep {
+        if !overlaps_finish(transform.translation.truncate(), &finish_area) {
+            continue;
+        }
+
+        commands.entity(entity).despawn();
+        score.record_finish(time.elapsed_secs());
+        play_sheep_sound(&mut commands, &audio, SheepSoundKind::Finish);
+    }
+}
+
 pub fn update_sheep_animation_range(
     mut sheep: Query<(&Facing, &Moving, &mut AnimationFrames, &mut Sprite), With<Sheep>>,
 ) {
@@ -540,9 +563,19 @@ fn play_sheep_sound(commands: &mut Commands, audio: &SheepAudio, sound: SheepSou
     let handle = match sound {
         SheepSoundKind::Bleat1 => audio.bleat_1.clone(),
         SheepSoundKind::Bleat2 => audio.bleat_2.clone(),
+        SheepSoundKind::Finish => audio.finish.clone(),
     };
 
     commands.spawn((AudioPlayer::new(handle), PlaybackSettings::DESPAWN));
+}
+
+fn overlaps_finish(sheep_position: Vec2, finish_area: &FinishArea) -> bool {
+    let sheep_half_size = Vec2::new(SHEEP_WIDTH as f32 / 2.0, SHEEP_HEIGHT as f32 / 2.0);
+    let finish_half_size = finish_area.size / 2.0;
+    let offset = sheep_position - finish_area.center;
+
+    offset.x.abs() <= sheep_half_size.x + finish_half_size.x
+        && offset.y.abs() <= sheep_half_size.y + finish_half_size.y
 }
 
 fn find_panicked_leader<'a>(
