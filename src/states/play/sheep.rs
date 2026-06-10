@@ -50,6 +50,9 @@ const SHEEP_SCARED_BASE_SPEED: f32 = 120.0;
 const SHEEP_BRAVERY_SPEED: f32 = 16.0;
 const SHEEP_WANDER_SPEED: f32 = 38.0;
 const SHEEP_SEPARATION_RADIUS: f32 = 46.0;
+const SHEEP_SCARE_SOUND_COOLDOWN: f32 = 0.35;
+const SHEEP_IDLE_SOUND_MIN_SECONDS: f32 = 4.0;
+const SHEEP_IDLE_SOUND_MAX_SECONDS: f32 = 8.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 struct SheepId(usize);
@@ -134,6 +137,36 @@ struct SheepSnapshot {
     panic: SheepPanic,
 }
 
+#[derive(Debug, Resource)]
+pub(super) struct SheepAudio {
+    bleat_1: Handle<AudioSource>,
+    bleat_2: Handle<AudioSource>,
+}
+
+#[derive(Debug, Resource)]
+pub(super) struct SheepSoundState {
+    scare_cooldown: f32,
+    idle_timer: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SheepSoundKind {
+    Bleat1,
+    Bleat2,
+}
+
+pub fn setup_sheep_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(SheepAudio {
+        bleat_1: asset_server.load("sounds/beh_1.ogg"),
+        bleat_2: asset_server.load("sounds/beh_2.ogg"),
+    });
+
+    commands.insert_resource(SheepSoundState {
+        scare_cooldown: 0.0,
+        idle_timer: 2.0,
+    });
+}
+
 pub fn setup_herd(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -198,10 +231,16 @@ pub fn setup_herd(
 }
 
 pub fn sense_sheep_threats(
+    mut commands: Commands,
+    time: Res<Time>,
+    audio: Res<SheepAudio>,
+    mut sound_state: ResMut<SheepSoundState>,
     shepherd: Query<&Transform, (With<Shepherd>, Without<Sheep>)>,
     dog: Query<&Transform, (With<Dog>, Without<Sheep>, Without<Shepherd>)>,
     mut sheep: Query<(&Transform, &mut SheepPanic), With<Sheep>>,
 ) {
+    sound_state.scare_cooldown = (sound_state.scare_cooldown - time.delta_secs()).max(0.0);
+
     let shepherd_position = shepherd
         .iter()
         .next()
@@ -213,7 +252,7 @@ pub fn sense_sheep_threats(
 
     for (transform, mut fear) in &mut sheep {
         let position = transform.translation.truncate();
-        let mut strongest: Option<(Vec2, f32)> = None;
+        let mut strongest: Option<(Vec2, f32, SheepSoundKind)> = None;
 
         if let Some(threat_position) = shepherd_position {
             update_strongest_threat(
@@ -222,6 +261,7 @@ pub fn sense_sheep_threats(
                 threat_position,
                 SHEPHERD_THREAT_RADIUS,
                 0.85,
+                SheepSoundKind::Bleat1,
             );
         }
 
@@ -232,12 +272,14 @@ pub fn sense_sheep_threats(
                 threat_position,
                 DOG_THREAT_RADIUS,
                 1.15,
+                SheepSoundKind::Bleat2,
             );
         }
 
-        if let Some((direction, intensity)) = strongest {
+        if let Some((direction, intensity, sound)) = strongest {
             if !fear.active() || !fear.propagated || intensity >= fear.intensity {
                 fear.set(direction, intensity, DIRECT_PANIC_DURATION, false);
+                play_scare_sound(&mut commands, &audio, &mut sound_state, sound);
             }
         }
     }
@@ -426,12 +468,41 @@ pub fn animate_sheep(
     }
 }
 
+pub fn play_idle_sheep_sounds(
+    mut commands: Commands,
+    time: Res<Time>,
+    audio: Res<SheepAudio>,
+    mut sound_state: ResMut<SheepSoundState>,
+    sheep: Query<(), With<Sheep>>,
+) {
+    if sheep.is_empty() {
+        return;
+    }
+
+    sound_state.idle_timer -= time.delta_secs();
+    if sound_state.idle_timer > 0.0 {
+        return;
+    }
+
+    let mut rng = rand::rng();
+    let sound = if rng.random_bool(0.5) {
+        SheepSoundKind::Bleat1
+    } else {
+        SheepSoundKind::Bleat2
+    };
+
+    play_sheep_sound(&mut commands, &audio, sound);
+    sound_state.idle_timer =
+        rng.random_range(SHEEP_IDLE_SOUND_MIN_SECONDS..=SHEEP_IDLE_SOUND_MAX_SECONDS);
+}
+
 fn update_strongest_threat(
-    strongest: &mut Option<(Vec2, f32)>,
+    strongest: &mut Option<(Vec2, f32, SheepSoundKind)>,
     sheep_position: Vec2,
     threat_position: Vec2,
     radius: f32,
     weight: f32,
+    sound: SheepSoundKind,
 ) {
     let to_sheep = sheep_position - threat_position;
     let distance = to_sheep.length();
@@ -446,9 +517,32 @@ fn update_strongest_threat(
         Vec2::X
     };
 
-    if strongest.is_none_or(|(_, current)| intensity > current) {
-        *strongest = Some((direction, intensity));
+    if strongest.is_none_or(|(_, current, _)| intensity > current) {
+        *strongest = Some((direction, intensity, sound));
     }
+}
+
+fn play_scare_sound(
+    commands: &mut Commands,
+    audio: &SheepAudio,
+    sound_state: &mut SheepSoundState,
+    sound: SheepSoundKind,
+) {
+    if sound_state.scare_cooldown > 0.0 {
+        return;
+    }
+
+    play_sheep_sound(commands, audio, sound);
+    sound_state.scare_cooldown = SHEEP_SCARE_SOUND_COOLDOWN;
+}
+
+fn play_sheep_sound(commands: &mut Commands, audio: &SheepAudio, sound: SheepSoundKind) {
+    let handle = match sound {
+        SheepSoundKind::Bleat1 => audio.bleat_1.clone(),
+        SheepSoundKind::Bleat2 => audio.bleat_2.clone(),
+    };
+
+    commands.spawn((AudioPlayer::new(handle), PlaybackSettings::DESPAWN));
 }
 
 fn find_panicked_leader<'a>(

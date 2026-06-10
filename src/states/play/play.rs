@@ -9,8 +9,9 @@ use crate::{
                 setup_dog_audio, update_dog_animation_range,
             },
             sheep::{
-                animate_sheep, decay_sheep_panic, move_sheep, propagate_sheep_panic,
-                sense_sheep_threats, setup_herd, steer_sheep, update_sheep_animation_range,
+                animate_sheep, decay_sheep_panic, move_sheep, play_idle_sheep_sounds,
+                propagate_sheep_panic, sense_sheep_threats, setup_herd, setup_sheep_audio,
+                steer_sheep, update_sheep_animation_range,
             },
             shepherd::{
                 animate_shepherd, move_camera, move_shepherd, setup_shepherd,
@@ -45,6 +46,7 @@ pub fn play_state_plugin(app: &mut App) {
                 setup_shepherd,
                 setup_dog,
                 setup_dog_audio,
+                setup_sheep_audio,
                 setup_herd,
             )
                 .chain(),
@@ -69,6 +71,7 @@ pub fn play_state_plugin(app: &mut App) {
                 animate_shepherd,
                 animate_dog,
                 animate_sheep,
+                play_idle_sheep_sounds,
                 move_camera,
             )
                 .chain()
