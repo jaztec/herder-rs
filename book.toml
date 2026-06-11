@@ -1,0 +1,9 @@
+[book]
+title = "Herder"
+authors = ["Jasper"]
+description = "Project documentation for the Bevy remake of Herder."
+src = "docs/src"
+language = "en"
+
+[output.html]
+default-theme = "rust"
