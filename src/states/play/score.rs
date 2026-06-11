@@ -55,7 +55,7 @@ impl HerdScore {
 
     fn label(&self) -> String {
         format!(
-            "Score: {} punten   Sheep: {}/{}",
+            "Score: {} points   Sheep: {}/{}",
             self.score, self.finished, self.total
         )
     }
