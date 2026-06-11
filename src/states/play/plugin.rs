@@ -18,7 +18,7 @@ use crate::{
             },
             shepherd::{
                 animate_shepherd, move_camera, move_shepherd, setup_shepherd,
-                update_shepherd_animation_range,
+                update_shepherd_animation_range, zoom_camera,
             },
         },
     },
@@ -60,7 +60,7 @@ pub fn play_state_plugin(app: &mut App) {
         )
         .add_systems(
             Update,
-            handle_dog_route_input.run_if(in_state(PlayState::Playing)),
+            (handle_dog_route_input, zoom_camera).run_if(in_state(PlayState::Playing)),
         )
         .add_systems(
             FixedUpdate,

@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use bevy::{input::mouse::MouseWheel, prelude::*};
 
 use crate::{
     states::play::common::{
@@ -22,9 +22,15 @@ const SHEPHERD_WALK_RIGHT: AnimationFrames = AnimationFrames::range(4, 7);
 const SHEPHERD_WALK_LEFT: AnimationFrames = AnimationFrames::range(8, 11);
 const SHEPHERD_WALK_DOWN: AnimationFrames = AnimationFrames::range(12, 15);
 const SHEPHERD_WALK_UP: AnimationFrames = AnimationFrames::range(16, 19);
+const MIN_CAMERA_SCALE: f32 = 0.6;
+const MAX_CAMERA_SCALE: f32 = 2.0;
+const CAMERA_ZOOM_STEP: f32 = 0.12;
 
 #[derive(Component)]
 pub struct Shepherd;
+
+type CameraFollowQuery<'w> =
+    Single<'w, (&'static mut Transform, &'static Projection), (With<Camera2d>, Without<Shepherd>)>;
 
 pub fn setup_shepherd(
     mut commands: Commands,
@@ -162,16 +168,38 @@ pub fn animate_shepherd(
     }
 }
 
+pub fn zoom_camera(
+    mut mouse_wheel: EventReader<MouseWheel>,
+    mut camera: Single<&mut Projection, With<Camera2d>>,
+) {
+    let scroll: f32 = mouse_wheel.read().map(|event| event.y).sum();
+    if scroll == 0.0 {
+        return;
+    }
+
+    let Projection::Orthographic(projection) = &mut **camera else {
+        return;
+    };
+
+    let zoom_factor = (1.0 - scroll * CAMERA_ZOOM_STEP).clamp(0.2, 5.0);
+    projection.scale = (projection.scale * zoom_factor).clamp(MIN_CAMERA_SCALE, MAX_CAMERA_SCALE);
+}
+
 pub fn move_camera(
-    mut camera: Single<&mut Transform, (With<Camera2d>, Without<Shepherd>)>,
+    mut camera: CameraFollowQuery,
     shepherd: Single<&Transform, (With<Shepherd>, Without<Camera2d>)>,
     bounds: Res<WorldBounds>,
     window: Single<&Window, With<PrimaryWindow>>,
 ) {
-    let half_window = Vec2::new(window.width() / 2.0, window.height() / 2.0);
+    let projection_scale = match camera.1 {
+        Projection::Orthographic(projection) => projection.scale,
+        _ => 1.0,
+    };
+    let half_window = Vec2::new(window.width(), window.height()) * projection_scale / 2.0;
+    let visible_size = half_window * 2.0;
     let half_world = bounds.size / 2.0;
 
-    let x = if bounds.size.x <= window.width() {
+    let x = if bounds.size.x <= visible_size.x {
         0.0
     } else {
         shepherd
@@ -179,7 +207,7 @@ pub fn move_camera(
             .x
             .clamp(-half_world.x + half_window.x, half_world.x - half_window.x)
     };
-    let y = if bounds.size.y <= window.height() {
+    let y = if bounds.size.y <= visible_size.y {
         0.0
     } else {
         shepherd
@@ -188,6 +216,6 @@ pub fn move_camera(
             .clamp(-half_world.y + half_window.y, half_world.y - half_window.y)
     };
 
-    camera.translation.x = x.round();
-    camera.translation.y = y.round();
+    camera.0.translation.x = x.round();
+    camera.0.translation.y = y.round();
 }
