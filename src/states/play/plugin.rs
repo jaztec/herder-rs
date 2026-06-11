@@ -8,6 +8,7 @@ use crate::{
                 DogRoute, animate_dog, handle_dog_route_input, move_dog, setup_dog,
                 setup_dog_audio, update_dog_animation_range,
             },
+            indicators::{setup_indicators, update_indicators},
             score::{
                 HerdScore, setup_finish_area, setup_herd_score, setup_score_hud, update_score_hud,
             },
@@ -55,6 +56,7 @@ pub fn play_state_plugin(app: &mut App) {
                 setup_dog_audio,
                 setup_sheep_audio,
                 setup_herd,
+                setup_indicators,
             )
                 .chain(),
         )
@@ -82,6 +84,7 @@ pub fn play_state_plugin(app: &mut App) {
                 play_idle_sheep_sounds,
                 update_score_hud,
                 move_camera,
+                update_indicators,
             )
                 .chain()
                 .run_if(in_state(PlayState::Playing)),
