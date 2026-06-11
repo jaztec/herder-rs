@@ -4,7 +4,10 @@ use std::{
     path::Path,
 };
 
-use bevy::prelude::*;
+use bevy::{
+    input::keyboard::{Key, KeyboardInput},
+    prelude::*,
+};
 
 use crate::states::{GameState, game_state::despawn_screen, play::score::HerdScore};
 
@@ -16,6 +19,8 @@ const FINISH_OVERLAY_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.62);
 const FINISH_PANEL_COLOR: Color = Color::srgba(0.05, 0.07, 0.06, 0.94);
 const FINISH_TEXT_COLOR: Color = Color::srgb(0.96, 0.94, 0.86);
 const FINISH_MUTED_TEXT_COLOR: Color = Color::srgb(0.82, 0.84, 0.78);
+const DEFAULT_PLAYER_NAME: &str = "Player";
+const MAX_PLAYER_NAME_CHARS: usize = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Resource)]
 pub(in crate::states::play) struct RunTimer {
@@ -39,11 +44,23 @@ impl RunTimer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub(in crate::states::play) struct FinishOverlay;
 
-#[derive(Debug, Clone, Copy)]
-struct Highscore {
+#[derive(Debug, Clone, PartialEq, Resource)]
+struct PendingHighscore {
+    name: String,
+    score: u32,
+    seconds: f32,
+    saved: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct StoredHighscore {
+    name: String,
     score: u32,
     seconds: f32,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+struct FinishNameText;
 
 pub(in crate::states::play) fn finish_state_plugin(app: &mut App) {
     app.init_resource::<RunTimer>()
@@ -74,9 +91,13 @@ pub(in crate::states::play) fn finish_when_herd_complete(
 
 fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Res<RunTimer>) {
     let final_time = timer.elapsed_seconds();
-    let highscores = save_highscore(score.score(), final_time).unwrap_or_else(|err| {
-        eprintln!("Failed to save highscore: {err}");
-        read_highscores().unwrap_or_default()
+    let highscores = read_highscores().unwrap_or_default();
+
+    commands.insert_resource(PendingHighscore {
+        name: String::new(),
+        score: score.score(),
+        seconds: final_time,
+        saved: false,
     });
 
     commands.spawn((
@@ -130,7 +151,16 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
                     TextColor(FINISH_MUTED_TEXT_COLOR),
                 ),
                 (
-                    Text::new("Enter: new game    Esc: main menu"),
+                    Text::new("Name: _"),
+                    FinishNameText,
+                    TextFont {
+                        font_size: 22.0,
+                        ..default()
+                    },
+                    TextColor(FINISH_TEXT_COLOR),
+                ),
+                (
+                    Text::new("Type name   Enter: save & new game   Esc: save & menu"),
                     TextFont {
                         font_size: 17.0,
                         ..default()
@@ -144,21 +174,69 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
 
 fn handle_finished_input(
     input: Res<ButtonInput<KeyCode>>,
+    mut keyboard_input: EventReader<KeyboardInput>,
+    mut pending: ResMut<PendingHighscore>,
+    mut name_text: Single<&mut Text, With<FinishNameText>>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
+    for event in keyboard_input.read() {
+        if !event.state.is_pressed() {
+            continue;
+        }
+
+        match (&event.logical_key, &event.text) {
+            (Key::Backspace, _) => {
+                pending.name.pop();
+            }
+            (_, Some(text)) => {
+                for character in text
+                    .chars()
+                    .filter(|character| is_name_character(*character))
+                {
+                    if pending.name.chars().count() >= MAX_PLAYER_NAME_CHARS {
+                        break;
+                    }
+                    pending.name.push(character);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    name_text.0 = format!("Name: {}", display_name_input(&pending.name));
+
     if input.just_pressed(KeyCode::Enter) {
+        save_pending_highscore(&mut pending);
         next_play_state.set(PlayState::Disabled);
         next_game_state.set(GameState::RestartPlay);
     } else if input.just_pressed(KeyCode::Escape) {
+        save_pending_highscore(&mut pending);
         next_play_state.set(PlayState::Disabled);
         next_game_state.set(GameState::Menu);
     }
 }
 
-fn save_highscore(score: u32, seconds: f32) -> io::Result<Vec<Highscore>> {
+fn save_pending_highscore(pending: &mut PendingHighscore) {
+    if pending.saved {
+        return;
+    }
+
+    let name = normalized_player_name(&pending.name);
+    if let Err(err) = save_highscore(&name, pending.score, pending.seconds) {
+        eprintln!("Failed to save highscore: {err}");
+    }
+
+    pending.saved = true;
+}
+
+fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<StoredHighscore>> {
     let mut highscores = read_highscores()?;
-    highscores.push(Highscore { score, seconds });
+    highscores.push(StoredHighscore {
+        name: name.to_string(),
+        score,
+        seconds,
+    });
     highscores.sort_by(|left, right| {
         right
             .score
@@ -169,13 +247,17 @@ fn save_highscore(score: u32, seconds: f32) -> io::Result<Vec<Highscore>> {
 
     let mut file = fs::File::create(HIGHSCORE_FILE)?;
     for highscore in &highscores {
-        writeln!(file, "{},{}", highscore.score, highscore.seconds)?;
+        writeln!(
+            file,
+            "{},{},{}",
+            highscore.name, highscore.score, highscore.seconds
+        )?;
     }
 
     Ok(highscores)
 }
 
-fn read_highscores() -> io::Result<Vec<Highscore>> {
+fn read_highscores() -> io::Result<Vec<StoredHighscore>> {
     if !Path::new(HIGHSCORE_FILE).exists() {
         return Ok(Vec::new());
     }
@@ -184,18 +266,27 @@ fn read_highscores() -> io::Result<Vec<Highscore>> {
     let highscores = contents
         .lines()
         .filter_map(|line| {
-            let (score, seconds) = line.split_once(',')?;
-            Some(Highscore {
-                score: score.parse().ok()?,
-                seconds: seconds.parse().ok()?,
-            })
+            let fields = line.split(',').collect::<Vec<_>>();
+            match fields.as_slice() {
+                [name, score, seconds] => Some(StoredHighscore {
+                    name: sanitize_stored_name(name),
+                    score: score.parse().ok()?,
+                    seconds: seconds.parse().ok()?,
+                }),
+                [score, seconds] => Some(StoredHighscore {
+                    name: DEFAULT_PLAYER_NAME.to_string(),
+                    score: score.parse().ok()?,
+                    seconds: seconds.parse().ok()?,
+                }),
+                _ => None,
+            }
         })
         .collect();
 
     Ok(highscores)
 }
 
-fn highscore_text(highscores: &[Highscore]) -> String {
+fn highscore_text(highscores: &[StoredHighscore]) -> String {
     if highscores.is_empty() {
         return "Highscores\nNo scores yet".to_string();
     }
@@ -205,8 +296,9 @@ fn highscore_text(highscores: &[Highscore]) -> String {
         .enumerate()
         .map(|(index, highscore)| {
             format!(
-                "{}. {} - {}",
+                "{}. {}  {} - {}",
                 index + 1,
+                highscore.name,
                 highscore.score,
                 format_time(highscore.seconds)
             )
@@ -215,6 +307,46 @@ fn highscore_text(highscores: &[Highscore]) -> String {
         .join("\n");
 
     format!("Highscores\n{rows}")
+}
+
+fn display_name_input(name: &str) -> String {
+    if name.is_empty() {
+        "_".to_string()
+    } else {
+        format!("{name}_")
+    }
+}
+
+fn normalized_player_name(name: &str) -> String {
+    let sanitized = name
+        .chars()
+        .filter(|character| is_name_character(*character))
+        .collect::<String>();
+    let trimmed = sanitized.trim();
+
+    if trimmed.is_empty() {
+        DEFAULT_PLAYER_NAME.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn sanitize_stored_name(name: &str) -> String {
+    let sanitized = name
+        .chars()
+        .filter(|character| is_name_character(*character))
+        .take(MAX_PLAYER_NAME_CHARS)
+        .collect::<String>();
+
+    if sanitized.trim().is_empty() {
+        DEFAULT_PLAYER_NAME.to_string()
+    } else {
+        sanitized
+    }
+}
+
+fn is_name_character(character: char) -> bool {
+    character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '_' | '.')
 }
 
 fn format_time(seconds: f32) -> String {
