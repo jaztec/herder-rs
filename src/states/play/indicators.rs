@@ -6,9 +6,15 @@ use crate::world::MapConfig;
 
 const MAX_SHEEP_INDICATORS: usize = 3;
 const SHEEP_CLUSTER_DISTANCE: f32 = 520.0;
-const INDICATOR_WIDTH: f32 = 86.0;
-const INDICATOR_HEIGHT: f32 = 34.0;
+const INDICATOR_WIDTH: f32 = 92.0;
+const INDICATOR_HEIGHT: f32 = 38.0;
 const INDICATOR_EDGE_MARGIN: f32 = 28.0;
+const INDICATOR_ICON_SIZE: f32 = 26.0;
+const ACTOR_ICON_WIDTH: u32 = 75;
+const ACTOR_ICON_HEIGHT: u32 = 60;
+const TILE_ICON_SIZE: u32 = 150;
+const FRONT_FRAME_INDEX: usize = 0;
+const FINISH_TILE_INDEX: usize = 3;
 const FINISH_COLOR: Color = Color::srgba(0.1, 0.38, 0.16, 0.86);
 const DOG_COLOR: Color = Color::srgba(0.18, 0.19, 0.24, 0.88);
 const SHEEP_COLOR: Color = Color::srgba(0.42, 0.38, 0.18, 0.88);
@@ -36,7 +42,6 @@ struct IndicatorState {
     kind: IndicatorKind,
     visible: bool,
     position: Vec2,
-    label: &'static str,
     count: usize,
     distance_tiles: u32,
 }
@@ -78,15 +83,56 @@ pub(in crate::states::play) struct IndicatorParams<'w, 's> {
     labels: Query<'w, 's, (&'static IndicatorLabel, &'static mut Text)>,
 }
 
-pub fn setup_indicators(mut commands: Commands) {
-    spawn_indicator(&mut commands, IndicatorKind::Finish, FINISH_COLOR);
-    spawn_indicator(&mut commands, IndicatorKind::Dog, DOG_COLOR);
+pub fn setup_indicators(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    let actor_atlas = texture_atlases.add(TextureAtlasLayout::from_grid(
+        UVec2::new(ACTOR_ICON_WIDTH, ACTOR_ICON_HEIGHT),
+        4,
+        5,
+        None,
+        None,
+    ));
+    let tile_atlas = texture_atlases.add(TextureAtlasLayout::from_grid(
+        UVec2::splat(TILE_ICON_SIZE),
+        3,
+        3,
+        None,
+        None,
+    ));
+
+    let finish_icon = IndicatorIcon {
+        image: asset_server.load("textures/backgrounds.png"),
+        atlas: tile_atlas,
+        index: FINISH_TILE_INDEX,
+    };
+    let dog_icon = IndicatorIcon {
+        image: asset_server.load("textures/dog.png"),
+        atlas: actor_atlas.clone(),
+        index: FRONT_FRAME_INDEX,
+    };
+    let sheep_icon = IndicatorIcon {
+        image: asset_server.load("textures/sheep.png"),
+        atlas: actor_atlas,
+        index: FRONT_FRAME_INDEX,
+    };
+
+    spawn_indicator(
+        &mut commands,
+        IndicatorKind::Finish,
+        FINISH_COLOR,
+        &finish_icon,
+    );
+    spawn_indicator(&mut commands, IndicatorKind::Dog, DOG_COLOR, &dog_icon);
 
     for index in 0..MAX_SHEEP_INDICATORS {
         spawn_indicator(
             &mut commands,
             IndicatorKind::SheepCluster(index),
             SHEEP_COLOR,
+            &sheep_icon,
         );
     }
 }
@@ -107,7 +153,6 @@ pub fn update_indicators(params: IndicatorParams) {
     let mut states = vec![
         target_state(
             IndicatorKind::Finish,
-            "F",
             finish.center,
             &view,
             config.tile_size,
@@ -118,7 +163,6 @@ pub fn update_indicators(params: IndicatorParams) {
             .map(|dog| {
                 target_state(
                     IndicatorKind::Dog,
-                    "D",
                     dog.translation.truncate(),
                     &view,
                     config.tile_size,
@@ -136,7 +180,6 @@ pub fn update_indicators(params: IndicatorParams) {
             .map(|cluster| {
                 target_state(
                     kind,
-                    "S",
                     cluster.position,
                     &view,
                     config.tile_size,
@@ -172,7 +215,22 @@ pub fn update_indicators(params: IndicatorParams) {
     }
 }
 
-fn spawn_indicator(commands: &mut Commands, kind: IndicatorKind, color: Color) {
+#[derive(Clone)]
+struct IndicatorIcon {
+    image: Handle<Image>,
+    atlas: Handle<TextureAtlasLayout>,
+    index: usize,
+}
+
+fn spawn_indicator(
+    commands: &mut Commands,
+    kind: IndicatorKind,
+    color: Color,
+    icon: &IndicatorIcon,
+) {
+    let mut atlas = TextureAtlas::from(icon.atlas.clone());
+    atlas.index = icon.index;
+
     commands.spawn((
         IndicatorRoot { kind },
         Node {
@@ -181,27 +239,38 @@ fn spawn_indicator(commands: &mut Commands, kind: IndicatorKind, color: Color) {
             height: Val::Px(INDICATOR_HEIGHT),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
+            padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
             left: Val::Px(0.0),
             top: Val::Px(0.0),
             ..default()
         },
         BackgroundColor(color),
         Visibility::Hidden,
-        children![(
-            IndicatorLabel { kind },
-            Text::new(""),
-            TextFont {
-                font_size: 16.0,
-                ..default()
-            },
-            TextColor(TEXT_COLOR),
-        )],
+        children![
+            (
+                ImageNode::from_atlas_image(icon.image.clone(), atlas),
+                Node {
+                    width: Val::Px(INDICATOR_ICON_SIZE),
+                    height: Val::Px(INDICATOR_ICON_SIZE),
+                    margin: UiRect::right(Val::Px(6.0)),
+                    ..default()
+                },
+            ),
+            (
+                IndicatorLabel { kind },
+                Text::new(""),
+                TextFont {
+                    font_size: 15.0,
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+            )
+        ],
     ));
 }
 
 fn target_state(
     kind: IndicatorKind,
-    label: &'static str,
     target: Vec2,
     view: &CameraView,
     tile_size: f32,
@@ -213,7 +282,6 @@ fn target_state(
         kind,
         visible: !is_world_position_visible(target, view),
         position: edge_position(target, view),
-        label,
         count,
         distance_tiles,
     }
@@ -224,7 +292,6 @@ fn hidden_state(kind: IndicatorKind) -> IndicatorState {
         kind,
         visible: false,
         position: Vec2::ZERO,
-        label: "",
         count: 0,
         distance_tiles: 0,
     }
@@ -309,8 +376,8 @@ fn cluster_offscreen_sheep(
 
 fn indicator_text(state: &IndicatorState) -> String {
     if state.count > 1 {
-        format!("{}x{} {}t", state.label, state.count, state.distance_tiles)
+        format!("x{} {}t", state.count, state.distance_tiles)
     } else {
-        format!("{} {}t", state.label, state.distance_tiles)
+        format!("{}t", state.distance_tiles)
     }
 }
