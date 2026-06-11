@@ -66,6 +66,10 @@ impl DogRoute {
     }
 }
 
+pub(in crate::states::play) fn reset_dog_route(mut route: ResMut<DogRoute>) {
+    *route = DogRoute::default();
+}
+
 #[derive(Debug, Resource)]
 pub struct DogAudio {
     route_bark: Handle<AudioSource>,

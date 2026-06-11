@@ -66,6 +66,14 @@ impl HerdScore {
             self.score, self.finished, self.total
         )
     }
+
+    pub(in crate::states::play) fn score(&self) -> u32 {
+        self.score
+    }
+
+    pub(in crate::states::play) fn is_complete(&self) -> bool {
+        self.total > 0 && self.finished >= self.total
+    }
 }
 
 impl Default for HerdScore {
@@ -75,7 +83,10 @@ impl Default for HerdScore {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
-pub(super) struct ScoreText;
+pub(in crate::states::play) struct ScoreHud;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+pub(in crate::states::play) struct ScoreText;
 
 pub fn setup_finish_area(mut commands: Commands, tiles: Res<TileMap>, config: Res<MapConfig>) {
     for y in 0..tiles.height() {
@@ -99,6 +110,7 @@ pub fn setup_herd_score(mut score: ResMut<HerdScore>) {
 
 pub fn setup_score_hud(mut commands: Commands, score: Res<HerdScore>) {
     commands.spawn((
+        ScoreHud,
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(12.0),
