@@ -59,6 +59,13 @@ impl HerdScore {
             self.score, self.finished, self.total
         )
     }
+
+    pub(in crate::states::play) fn pause_label(&self) -> String {
+        format!(
+            "Score: {}\nSheep herded: {}/{}",
+            self.score, self.finished, self.total
+        )
+    }
 }
 
 impl Default for HerdScore {

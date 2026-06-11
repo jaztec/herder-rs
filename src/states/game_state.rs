@@ -6,8 +6,6 @@ pub enum GameState {
     #[default]
     Menu,
     Play,
-    // Pause,
-    // GameOver,
 }
 
 pub(crate) fn despawn_screen<T: Component>(
