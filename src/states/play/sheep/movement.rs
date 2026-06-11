@@ -1,3 +1,5 @@
+//! Sheep movement and world-bound clamping.
+
 use bevy::prelude::*;
 
 use crate::{
@@ -8,6 +10,7 @@ use crate::{
     world::WorldBounds,
 };
 
+/// Apply AI velocity to every sheep and update movement-facing state.
 pub(in crate::states::play) fn move_sheep(
     time: Res<Time>,
     bounds: Res<WorldBounds>,
@@ -29,6 +32,7 @@ pub(in crate::states::play) fn move_sheep(
     }
 }
 
+/// Convert a velocity direction into the closest sprite-facing direction.
 pub(super) fn direction_to_facing(direction: Vec2) -> FacingDirection {
     if direction.x.abs() > direction.y.abs() {
         if direction.x >= 0.0 {
@@ -43,6 +47,7 @@ pub(super) fn direction_to_facing(direction: Vec2) -> FacingDirection {
     }
 }
 
+/// Clamp a sheep-sized position to the playable world.
 pub(super) fn clamp_position_to_world(position: &mut Vec2, bounds: &WorldBounds) {
     let half_size = Vec2::new(SHEEP_WIDTH as f32 / 2.0, SHEEP_HEIGHT as f32 / 2.0);
     let half_world = bounds.size / 2.0;

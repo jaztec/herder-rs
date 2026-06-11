@@ -51,13 +51,21 @@ just run
 The project docs are an mdBook in `docs/src`.
 
 ```sh
-mdbook serve
+just docs
 ```
 
-If `mdbook` is not installed:
+The generated Rust code overview is built with rustdoc:
 
 ```sh
-cargo install mdbook
+just docs-code
 ```
+
+Open it locally with:
+
+```sh
+just docs-code-open
+```
+
+If `mdbook` is not installed, run `cargo install mdbook`.
 
 Highscores are stored locally in `herder_highscores.txt`.

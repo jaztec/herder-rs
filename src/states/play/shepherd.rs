@@ -1,3 +1,5 @@
+//! Shepherd actor movement, animation, camera follow, and zoom.
+
 use bevy::window::PrimaryWindow;
 use bevy::{input::mouse::MouseWheel, prelude::*};
 
@@ -8,9 +10,13 @@ use crate::{
     world::WorldBounds,
 };
 
+/// Display/debug name for the spawned shepherd entity.
 pub const SHEPHERD_NAME: &str = "Shepherd";
+/// Shepherd movement speed in world units per second.
 pub const SHEPHERD_SPEED: f32 = 260.0;
+/// Shepherd sprite frame width.
 pub const SHEPHERD_WIDTH: u32 = 50;
+/// Shepherd sprite frame height.
 pub const SHEPHERD_HEIGHT: u32 = 75;
 
 const SHEPHERD_ANIMATION_FRAME_TIME: f32 = 0.08;
@@ -27,12 +33,14 @@ const MAX_CAMERA_SCALE: f32 = 2.0;
 const CAMERA_ZOOM_STEP: f32 = 0.12;
 const SHEPHERD_SPAWN_POSITION: Vec2 = Vec2::ZERO;
 
+/// Marker component for the player-controlled shepherd.
 #[derive(Component)]
 pub struct Shepherd;
 
 type CameraFollowQuery<'w> =
     Single<'w, (&'static mut Transform, &'static Projection), (With<Camera2d>, Without<Shepherd>)>;
 
+/// Spawn the shepherd at its initial position.
 pub fn setup_shepherd(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -73,10 +81,12 @@ pub fn setup_shepherd(
     ));
 }
 
+/// Initial shepherd spawn position in world coordinates.
 pub(in crate::states::play) fn shepherd_spawn_position() -> Vec2 {
     SHEPHERD_SPAWN_POSITION
 }
 
+/// Move the shepherd from keyboard input and clamp it to the world.
 pub fn move_shepherd(
     mut shepherd: Single<(&mut Transform, &Velocity, &mut Facing, &mut Moving), With<Shepherd>>,
     input: Res<ButtonInput<KeyCode>>,
@@ -121,6 +131,7 @@ pub fn move_shepherd(
         .clamp(-half_world.y + half_size.y, half_world.y - half_size.y);
 }
 
+/// Select the shepherd's standing or walking atlas range from movement state.
 pub fn update_shepherd_animation_range(
     mut shepherd: Single<(&Facing, &Moving, &mut AnimationFrames, &mut Sprite), With<Shepherd>>,
 ) {
@@ -148,6 +159,7 @@ pub fn update_shepherd_animation_range(
     }
 }
 
+/// Advance the shepherd sprite atlas frame when its animation timer ticks.
 pub fn animate_shepherd(
     time: Res<Time>,
     mut shepherd: Single<(&mut Sprite, &AnimationFrames, &mut AnimationTimer), With<Shepherd>>,
@@ -173,6 +185,7 @@ pub fn animate_shepherd(
     }
 }
 
+/// Zoom the orthographic camera with mouse-wheel input.
 pub fn zoom_camera(
     mut mouse_wheel: EventReader<MouseWheel>,
     mut camera: Single<&mut Projection, With<Camera2d>>,
@@ -190,6 +203,7 @@ pub fn zoom_camera(
     projection.scale = (projection.scale * zoom_factor).clamp(MIN_CAMERA_SCALE, MAX_CAMERA_SCALE);
 }
 
+/// Keep the camera centered on the shepherd while respecting world bounds.
 pub fn move_camera(
     mut camera: CameraFollowQuery,
     shepherd: Single<&Transform, (With<Shepherd>, Without<Camera2d>)>,

@@ -1,3 +1,8 @@
+//! World generation, tile data, and camera setup.
+//!
+//! The world module owns the tile map resources and the systems that turn those
+//! resources into renderable tile entities.
+
 mod builder;
 mod camera;
 mod tile;

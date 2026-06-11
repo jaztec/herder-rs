@@ -1,3 +1,8 @@
+//! Herd and sheep spawning.
+//!
+//! The herd spawns as a compact cluster away from the finish tile and away from
+//! the shepherd/dog start tiles when the map allows it.
+
 use bevy::prelude::*;
 use rand::{Rng, prelude::IndexedRandom};
 
@@ -22,6 +27,7 @@ use crate::{
 const HERD_MIN_FINISH_DISTANCE_TILES: f32 = 7.0;
 const SPAWN_POSITION_ATTEMPTS: usize = 20;
 
+/// Spawn the herd marker and all sheep for a new run.
 pub(in crate::states::play) fn setup_herd(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

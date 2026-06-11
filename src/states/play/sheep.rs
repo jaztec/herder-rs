@@ -1,3 +1,8 @@
+//! Sheep feature module.
+//!
+//! Sheep behavior is split into small systems for spawning, threat sensing,
+//! panic propagation, steering, movement, animation, audio, and finish handling.
+
 mod ai;
 mod animation;
 mod audio;

@@ -1,3 +1,5 @@
+//! Main menu state and UI systems.
+
 use bevy::{color::palettes::css::CRIMSON, prelude::*};
 
 use crate::states::{GameState, game_state::despawn_screen};
@@ -57,6 +59,7 @@ fn button_system(mut interaction_query: ButtonStyleQuery) {
     }
 }
 
+/// Register menu state systems.
 pub fn menu_state_plugin(app: &mut App) {
     app.init_state::<MenuState>()
         .add_systems(OnEnter(GameState::Menu), main_menu_setup)

@@ -1,3 +1,9 @@
+//! Sheep threat sensing, panic propagation, and steering.
+//!
+//! The AI is intentionally local and rule-based: sheep react to nearby threats,
+//! can inherit panic from braver panicked sheep, follow braver calm sheep, and
+//! wander when no stronger behavior is active.
+
 use std::time::Duration;
 
 use bevy::prelude::*;
@@ -18,6 +24,7 @@ use crate::states::play::{
     shepherd::Shepherd,
 };
 
+/// Snapshot of sheep state used to compute AI without borrowing conflicts.
 #[derive(Debug, Clone, Copy)]
 struct SheepSnapshot {
     entity: Entity,
@@ -57,6 +64,7 @@ type SheepSteeringQuery<'w, 's> = Query<
     With<Sheep>,
 >;
 
+/// Detect shepherd and dog threats and apply direct panic to nearby sheep.
 pub(in crate::states::play) fn sense_sheep_threats(
     mut commands: Commands,
     time: Res<Time>,
@@ -112,6 +120,7 @@ pub(in crate::states::play) fn sense_sheep_threats(
     }
 }
 
+/// Spread panic from braver panicked sheep to weaker sheep in the vicinity.
 pub(in crate::states::play) fn propagate_sheep_panic(
     mut sheep: ParamSet<(SheepSnapshotQuery, SheepPanicQuery)>,
 ) {
@@ -148,6 +157,7 @@ pub(in crate::states::play) fn propagate_sheep_panic(
     }
 }
 
+/// Convert panic, leader following, wandering, and separation into velocity.
 pub(in crate::states::play) fn steer_sheep(
     time: Res<Time>,
     mut sheep: ParamSet<(SheepSnapshotQuery, SheepSteeringQuery)>,
@@ -196,6 +206,7 @@ pub(in crate::states::play) fn steer_sheep(
     }
 }
 
+/// Tick down panic timers and clear expired panic state.
 pub(in crate::states::play) fn decay_sheep_panic(
     time: Res<Time>,
     mut sheep: Query<&mut SheepPanic, With<Sheep>>,

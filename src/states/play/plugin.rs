@@ -1,3 +1,8 @@
+//! Play-state plugin and scheduling.
+//!
+//! This module wires setup, cleanup, pause handling, and the fixed-update
+//! gameplay pipeline together behind Bevy states.
+
 use bevy::prelude::*;
 
 use crate::{
@@ -33,12 +38,17 @@ use crate::{
     world::{MapConfig, TileMap, WorldBounds, WorldTile, create_world, draw_world},
 };
 
+/// Nested state for the active play session.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Hash, States)]
 pub(in crate::states::play) enum PlayState {
+    /// No play session is currently active.
     #[default]
     Disabled,
+    /// Gameplay systems are running.
     Playing,
+    /// Gameplay is paused and the pause overlay is visible.
     Paused,
+    /// All sheep have been herded and the finish overlay is visible.
     Finished,
 }
 
@@ -59,6 +69,7 @@ type PlayCleanupFilter = Or<(
 
 type PlayCleanupQuery<'w, 's> = Query<'w, 's, Entity, PlayCleanupFilter>;
 
+/// Register all play-state resources, systems, and nested plugins.
 pub fn play_state_plugin(app: &mut App) {
     let map_config = MapConfig::default();
 

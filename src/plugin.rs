@@ -1,3 +1,8 @@
+//! Root Bevy plugin for the Herder game.
+//!
+//! This plugin wires together the camera, menu, play, and game-over state
+//! plugins. Feature-specific systems stay in their own modules.
+
 use bevy::prelude::*;
 
 use crate::{
@@ -5,6 +10,7 @@ use crate::{
     world::setup_camera,
 };
 
+/// Root plugin added by `main`.
 pub struct HerderGame;
 
 impl Plugin for HerderGame {

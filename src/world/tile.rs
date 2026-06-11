@@ -1,13 +1,22 @@
+//! Tile-map data structures and coordinate conversion helpers.
+
 use bevy::prelude::*;
 
+/// Default generated map width in tiles.
 pub const DEFAULT_MAP_WIDTH: usize = 24;
+/// Default generated map height in tiles.
 pub const DEFAULT_MAP_HEIGHT: usize = 18;
+/// Default square tile size in world units.
 pub const DEFAULT_TILE_SIZE: f32 = 150.0;
 
+/// Configuration for the generated tile map.
 #[derive(Debug, Clone, Copy, PartialEq, Resource)]
 pub struct MapConfig {
+    /// Number of tiles along the x axis.
     pub width: usize,
+    /// Number of tiles along the y axis.
     pub height: usize,
+    /// Size of one square tile in world units.
     pub tile_size: f32,
 }
 
@@ -22,6 +31,7 @@ impl Default for MapConfig {
 }
 
 impl MapConfig {
+    /// Return the full world size in world units.
     pub fn world_size(&self) -> Vec2 {
         Vec2::new(
             self.width as f32 * self.tile_size,
@@ -29,6 +39,7 @@ impl MapConfig {
         )
     }
 
+    /// Return the world-space center of a tile.
     pub fn tile_world_position(&self, x: usize, y: usize) -> Vec3 {
         let world_size = self.world_size();
         let left = -world_size.x / 2.0;
@@ -41,6 +52,7 @@ impl MapConfig {
         )
     }
 
+    /// Convert a world-space position to the tile that contains it.
     pub fn world_tile_position(&self, position: Vec2) -> Option<GridPosition> {
         let world_size = self.world_size();
         let left = -world_size.x / 2.0;
@@ -60,8 +72,10 @@ impl MapConfig {
     }
 }
 
+/// Current world bounds in world units.
 #[derive(Debug, Clone, Copy, PartialEq, Resource)]
 pub struct WorldBounds {
+    /// Width and height of the playable world.
     pub size: Vec2,
 }
 
@@ -73,6 +87,7 @@ impl From<&MapConfig> for WorldBounds {
     }
 }
 
+/// Dense tile grid used as the source data for map rendering and gameplay.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Resource)]
 pub struct TileMap {
     tiles: Vec<Vec<Tile>>,
@@ -81,6 +96,7 @@ pub struct TileMap {
 }
 
 impl TileMap {
+    /// Create a grass-filled tile map.
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             tiles: vec![vec![Tile::Grass; width]; height],
@@ -125,28 +141,40 @@ impl From<&MapConfig> for TileMap {
     }
 }
 
+/// Tile position in grid coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub struct GridPosition {
+    /// Horizontal tile index.
     pub x: usize,
+    /// Vertical tile index.
     pub y: usize,
 }
 
+/// Grid position of the finish tile for the current run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Resource)]
 pub struct FinishTilePosition {
+    /// Horizontal tile index.
     pub x: usize,
+    /// Vertical tile index.
     pub y: usize,
 }
 
+/// Marker component for spawned tile entities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub struct WorldTile;
 
+/// Tile kinds available in the terrain atlas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Component)]
 #[repr(u8)]
 pub enum Tile {
+    /// Basic grass tile.
     #[default]
     Grass,
+    /// Water tile. Currently still walkable.
     Water,
+    /// Decorative flower tile.
     Flowers,
+    /// Goal tile that consumes sheep.
     Finish,
 }
 

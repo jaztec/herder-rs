@@ -1,3 +1,8 @@
+//! Off-screen indicators for important targets.
+//!
+//! Indicators appear at the edge of the camera view for the finish tile, dog,
+//! and up to a few sheep clusters when those targets are outside the viewport.
+
 use bevy::window::PrimaryWindow;
 use bevy::{ecs::system::SystemParam, prelude::*};
 
@@ -20,18 +25,24 @@ const DOG_COLOR: Color = Color::srgba(0.18, 0.19, 0.24, 0.88);
 const SHEEP_COLOR: Color = Color::srgba(0.42, 0.38, 0.18, 0.88);
 const TEXT_COLOR: Color = Color::srgb(0.96, 0.96, 0.9);
 
+/// Kind of off-screen target represented by an indicator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub(in crate::states::play) enum IndicatorKind {
+    /// Finish tile indicator.
     Finish,
+    /// Dog indicator.
     Dog,
+    /// Sheep cluster indicator by slot index.
     SheepCluster(usize),
 }
 
+/// Root UI node for one indicator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub(in crate::states::play) struct IndicatorRoot {
     kind: IndicatorKind,
 }
 
+/// Text label belonging to an indicator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub(in crate::states::play) struct IndicatorLabel {
     kind: IndicatorKind,
@@ -63,6 +74,7 @@ struct SheepCluster {
 type CameraIndicatorQuery<'w> =
     Single<'w, (&'static GlobalTransform, &'static Projection), With<Camera2d>>;
 
+/// Grouped system parameters for indicator updates.
 #[derive(SystemParam)]
 pub(in crate::states::play) struct IndicatorParams<'w, 's> {
     finish: Res<'w, FinishArea>,
@@ -83,6 +95,7 @@ pub(in crate::states::play) struct IndicatorParams<'w, 's> {
     labels: Query<'w, 's, (&'static IndicatorLabel, &'static mut Text)>,
 }
 
+/// Spawn all indicator UI nodes.
 pub fn setup_indicators(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -137,6 +150,7 @@ pub fn setup_indicators(
     }
 }
 
+/// Reposition and relabel indicators based on current camera visibility.
 pub fn update_indicators(params: IndicatorParams) {
     let IndicatorParams {
         finish,

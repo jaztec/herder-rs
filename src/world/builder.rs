@@ -1,3 +1,5 @@
+//! Procedural world creation and tile rendering systems.
+
 use bevy::prelude::*;
 use rand::seq::{IndexedRandom, IteratorRandom};
 
@@ -8,6 +10,11 @@ use crate::world::tile::{
 const BACKGROUND_SECTION_SIZE: u32 = 150;
 const FINISH_EDGE_MARGIN_TILES: usize = 2;
 
+/// Fill the tile map for a new run and choose a finish tile.
+///
+/// The finish tile is constrained away from the edge when the map is large
+/// enough. Its grid position is stored as a resource so scoring, indicators,
+/// and spawn placement all share the same source of truth.
 pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
     let mut rng = rand::rng();
 
@@ -50,6 +57,7 @@ fn edge_margin_for(size: usize, preferred_margin: usize) -> usize {
     preferred_margin.min(size.saturating_sub(1) / 2)
 }
 
+/// Spawn one sprite entity for each tile in the current tile map.
 pub fn draw_world(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

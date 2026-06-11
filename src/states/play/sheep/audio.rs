@@ -1,12 +1,16 @@
+//! Sheep audio resource and playback systems.
+
 use bevy::prelude::*;
 use rand::Rng;
 
 use crate::states::play::sheep::components::Sheep;
 
+/// Cooldown between threat-triggered bleats.
 pub(super) const SHEEP_SCARE_SOUND_COOLDOWN: f32 = 0.35;
 const SHEEP_IDLE_SOUND_MIN_SECONDS: f32 = 4.0;
 const SHEEP_IDLE_SOUND_MAX_SECONDS: f32 = 8.0;
 
+/// Loaded audio handles for sheep sounds.
 #[derive(Debug, Resource)]
 pub(in crate::states::play) struct SheepAudio {
     bleat_1: Handle<AudioSource>,
@@ -14,19 +18,26 @@ pub(in crate::states::play) struct SheepAudio {
     finish: Handle<AudioSource>,
 }
 
+/// Runtime sheep audio timers.
 #[derive(Debug, Resource)]
 pub(in crate::states::play) struct SheepSoundState {
+    /// Shared cooldown for scare sounds.
     pub(super) scare_cooldown: f32,
     idle_timer: f32,
 }
 
+/// Sheep sound variants used by gameplay systems.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum SheepSoundKind {
+    /// First bleat variant.
     Bleat1,
+    /// Second bleat variant.
     Bleat2,
+    /// Sound played when a sheep enters the finish.
     Finish,
 }
 
+/// Load sheep audio handles and initialize playback timers.
 pub(in crate::states::play) fn setup_sheep_audio(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -43,6 +54,7 @@ pub(in crate::states::play) fn setup_sheep_audio(
     });
 }
 
+/// Occasionally play an idle bleat while sheep remain in the world.
 pub(in crate::states::play) fn play_idle_sheep_sounds(
     mut commands: Commands,
     time: Res<Time>,
@@ -71,6 +83,7 @@ pub(in crate::states::play) fn play_idle_sheep_sounds(
         rng.random_range(SHEEP_IDLE_SOUND_MIN_SECONDS..=SHEEP_IDLE_SOUND_MAX_SECONDS);
 }
 
+/// Play a scare sound if the scare cooldown has elapsed.
 pub(super) fn play_scare_sound(
     commands: &mut Commands,
     audio: &SheepAudio,
@@ -85,6 +98,7 @@ pub(super) fn play_scare_sound(
     sound_state.scare_cooldown = SHEEP_SCARE_SOUND_COOLDOWN;
 }
 
+/// Spawn a one-shot sheep audio player.
 pub(super) fn play_sheep_sound(commands: &mut Commands, audio: &SheepAudio, sound: SheepSoundKind) {
     let handle = match sound {
         SheepSoundKind::Bleat1 => audio.bleat_1.clone(),

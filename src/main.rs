@@ -1,3 +1,9 @@
+//! Entry point for the Herder Bevy application.
+//!
+//! The game is currently a binary crate. Local code documentation is generated
+//! with `cargo doc --document-private-items` so internal Bevy systems and
+//! components show up in the rustdoc output.
+
 use bevy::prelude::*;
 
 use crate::plugin::HerderGame;

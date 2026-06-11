@@ -1,3 +1,5 @@
+//! Finish state, run timer, highscore persistence, and finish overlay UI.
+
 use std::{
     fs,
     io::{self, Write},
@@ -24,6 +26,7 @@ const FINISH_HIGHLIGHT_TEXT_COLOR: Color = Color::srgb(1.0, 0.86, 0.32);
 const DEFAULT_PLAYER_NAME: &str = "Player";
 const MAX_PLAYER_NAME_CHARS: usize = 14;
 
+/// Timer for elapsed active play time.
 #[derive(Debug, Clone, Copy, PartialEq, Resource)]
 pub(in crate::states::play) struct RunTimer {
     elapsed_seconds: f32,
@@ -38,11 +41,13 @@ impl Default for RunTimer {
 }
 
 impl RunTimer {
+    /// Return elapsed active play time in seconds.
     pub(in crate::states::play) fn elapsed_seconds(self) -> f32 {
         self.elapsed_seconds
     }
 }
 
+/// Marker component for the finish overlay root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub(in crate::states::play) struct FinishOverlay;
 
@@ -115,6 +120,7 @@ struct FinishUi<'w, 's> {
     fields: FinishUiFields<'w, 's>,
 }
 
+/// Register finish-state systems.
 pub(in crate::states::play) fn finish_state_plugin(app: &mut App) {
     app.init_resource::<RunTimer>()
         .add_systems(OnEnter(PlayState::Finished), setup_finish_overlay)
@@ -125,14 +131,17 @@ pub(in crate::states::play) fn finish_state_plugin(app: &mut App) {
         );
 }
 
+/// Reset the run timer for a new play session.
 pub(in crate::states::play) fn reset_run_timer(mut timer: ResMut<RunTimer>) {
     timer.elapsed_seconds = 0.0;
 }
 
+/// Tick active play time.
 pub(in crate::states::play) fn tick_run_timer(time: Res<Time>, mut timer: ResMut<RunTimer>) {
     timer.elapsed_seconds += time.delta_secs();
 }
 
+/// Enter the finished state when every sheep has been scored.
 pub(in crate::states::play) fn finish_when_herd_complete(
     score: Res<HerdScore>,
     mut next_play_state: ResMut<NextState<PlayState>>,
@@ -342,6 +351,7 @@ fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<Highsc
     Ok(highscores)
 }
 
+/// Highscore list text used by overlays outside the finish screen.
 pub(in crate::states::play) fn highscore_text_for_overlay() -> String {
     highscore_text(&display_rows_from_stored(
         &read_highscores().unwrap_or_default(),

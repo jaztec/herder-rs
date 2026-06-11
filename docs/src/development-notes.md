@@ -28,3 +28,13 @@ Play entities are cleaned up when leaving `GameState::Play`. This includes map t
 ## Local Runtime Files
 
 `herder_highscores.txt` is a local runtime file. It should not be treated as source data.
+
+## Generated Code Docs
+
+Use rustdoc for the generated code overview:
+
+```sh
+just docs-code
+```
+
+The docs include private items so internal Bevy systems, components, resources, and helper functions are visible.

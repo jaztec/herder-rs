@@ -1,3 +1,5 @@
+//! Sheep finish-overlap handling.
+
 use bevy::prelude::*;
 
 use crate::states::play::{
@@ -8,6 +10,7 @@ use crate::states::play::{
     },
 };
 
+/// Despawn sheep that overlap the finish area and update score/audio.
 pub(in crate::states::play) fn finish_sheep(
     mut commands: Commands,
     time: Res<Time>,

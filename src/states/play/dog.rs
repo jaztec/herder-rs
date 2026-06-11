@@ -1,3 +1,5 @@
+//! Dog actor, route input, waypoint following, and barking.
+
 use std::collections::VecDeque;
 
 use bevy::window::PrimaryWindow;
@@ -14,12 +16,17 @@ use crate::{
     world::WorldBounds,
 };
 
+/// Marker component for the dog entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Component)]
 pub struct Dog;
 
+/// Display/debug name for the spawned dog entity.
 pub const DOG_NAME: &str = "Dog";
+/// Dog movement speed in world units per second.
 pub const DOG_SPEED: f32 = 360.0;
+/// Dog sprite frame width.
 pub const DOG_WIDTH: u32 = 75;
+/// Dog sprite frame height.
 pub const DOG_HEIGHT: u32 = 60;
 
 const DOG_ANIMATION_FRAME_TIME: f32 = 0.08;
@@ -41,10 +48,14 @@ const WAYPOINT_Z: f32 = 20.0;
 const DOG_Z: f32 = 11.0;
 const DOG_SPAWN_POSITION: Vec2 = Vec2::new(90.0, -90.0);
 
+/// Current high-level behavior mode for the dog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
 pub enum DogMode {
+    /// Stay near the shepherd when no route is active.
     FollowingShepherd,
+    /// Follow the drawn waypoint route.
     FollowingRoute,
+    /// Stay in place until commanded again.
     Stopped,
 }
 
@@ -54,6 +65,7 @@ struct RoutePoint {
     marker: Entity,
 }
 
+/// Current route state built from mouse-drawn waypoints.
 #[derive(Debug, Default, Resource)]
 pub struct DogRoute {
     points: VecDeque<RoutePoint>,
@@ -71,15 +83,18 @@ pub(in crate::states::play) fn reset_dog_route(mut route: ResMut<DogRoute>) {
     *route = DogRoute::default();
 }
 
+/// Audio handles used by dog systems.
 #[derive(Debug, Resource)]
 pub struct DogAudio {
     route_bark: Handle<AudioSource>,
     command_bark: Handle<AudioSource>,
 }
 
+/// Marker for waypoint entities drawn in the world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub struct RouteWaypoint;
 
+/// Spawn the dog at its initial position.
 pub fn setup_dog(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -119,10 +134,12 @@ pub fn setup_dog(
     ));
 }
 
+/// Initial dog spawn position in world coordinates.
 pub(in crate::states::play) fn dog_spawn_position() -> Vec2 {
     DOG_SPAWN_POSITION
 }
 
+/// Load dog bark audio handles.
 pub fn setup_dog_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(DogAudio {
         route_bark: asset_server.load("sounds/bark_2.ogg"),
@@ -130,6 +147,7 @@ pub fn setup_dog_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
+/// Grouped system parameters for dog route input.
 #[derive(SystemParam)]
 pub struct DogRouteInputParams<'w> {
     buttons: Res<'w, ButtonInput<MouseButton>>,
@@ -142,6 +160,7 @@ pub struct DogRouteInputParams<'w> {
     dog_audio: Res<'w, DogAudio>,
 }
 
+/// Handle mouse input for route drawing and dog commands.
 pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams) {
     let DogRouteInputParams {
         buttons,
@@ -220,6 +239,7 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
     }
 }
 
+/// Move the dog according to its current behavior mode.
 pub fn move_dog(
     mut commands: Commands,
     time: Res<Time>,
@@ -333,6 +353,7 @@ fn resolve_reached_route_points(
     }
 }
 
+/// Select the dog's standing or walking atlas range from movement state.
 pub fn update_dog_animation_range(
     mut dog: Single<(&Facing, &Moving, &mut AnimationFrames, &mut Sprite), With<Dog>>,
 ) {
@@ -360,6 +381,7 @@ pub fn update_dog_animation_range(
     }
 }
 
+/// Advance the dog's sprite atlas frame when its animation timer ticks.
 pub fn animate_dog(
     time: Res<Time>,
     mut dog: Single<(&mut Sprite, &AnimationFrames, &mut AnimationTimer), With<Dog>>,

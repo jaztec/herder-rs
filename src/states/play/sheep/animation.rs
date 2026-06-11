@@ -1,3 +1,5 @@
+//! Sheep sprite animation systems.
+
 use bevy::prelude::*;
 use rand::Rng;
 
@@ -6,6 +8,7 @@ use crate::states::play::{
     sheep::components::Sheep,
 };
 
+/// Time between sheep walking animation frames.
 pub(super) const SHEEP_ANIMATION_FRAME_TIME: f32 = 0.1;
 const SHEEP_STAND_DOWN: usize = 0;
 const SHEEP_STAND_UP: usize = 1;
@@ -16,6 +19,7 @@ const SHEEP_WALK_LEFT: AnimationFrames = AnimationFrames::range(8, 11);
 const SHEEP_WALK_DOWN: AnimationFrames = AnimationFrames::range(12, 15);
 const SHEEP_WALK_UP: AnimationFrames = AnimationFrames::range(16, 19);
 
+/// Select standing or walking atlas ranges for every sheep.
 pub(in crate::states::play) fn update_sheep_animation_range(
     mut sheep: Query<(&Facing, &Moving, &mut AnimationFrames, &mut Sprite), With<Sheep>>,
 ) {
@@ -40,6 +44,7 @@ pub(in crate::states::play) fn update_sheep_animation_range(
     }
 }
 
+/// Advance sheep sprite atlas frames when their animation timers tick.
 pub(in crate::states::play) fn animate_sheep(
     time: Res<Time>,
     mut sheep: Query<(&mut Sprite, &AnimationFrames, &mut AnimationTimer), With<Sheep>>,
@@ -64,6 +69,7 @@ pub(in crate::states::play) fn animate_sheep(
     }
 }
 
+/// Standing atlas frame for a facing direction.
 pub(super) fn standing_frame(direction: FacingDirection) -> usize {
     match direction {
         FacingDirection::Right => SHEEP_STAND_RIGHT,
@@ -73,6 +79,7 @@ pub(super) fn standing_frame(direction: FacingDirection) -> usize {
     }
 }
 
+/// Random initial facing direction for a spawned sheep.
 pub(super) fn random_facing(rng: &mut impl Rng) -> FacingDirection {
     match rng.random_range(0..4) {
         0 => FacingDirection::Right,
