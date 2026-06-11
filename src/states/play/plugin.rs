@@ -10,7 +10,8 @@ use crate::{
                 reset_dog_route, setup_dog, setup_dog_audio, update_dog_animation_range,
             },
             finish::{
-                finish_state_plugin, finish_when_herd_complete, reset_run_timer, tick_run_timer,
+                finish_state_plugin, finish_when_herd_complete, highscore_text_for_overlay,
+                reset_run_timer, tick_run_timer,
             },
             herd::Herd,
             indicators::{IndicatorRoot, setup_indicators, update_indicators},
@@ -147,6 +148,8 @@ fn toggle_pause(
 }
 
 fn setup_pause_overlay(mut commands: Commands, score: Res<HerdScore>) {
+    let highscore_text = highscore_text_for_overlay();
+
     commands.spawn((
         PauseOverlay,
         Node {
@@ -160,11 +163,11 @@ fn setup_pause_overlay(mut commands: Commands, score: Res<HerdScore>) {
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.58)),
         children![(
             Node {
-                width: Val::Px(360.0),
+                width: Val::Px(430.0),
                 padding: UiRect::all(Val::Px(28.0)),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
-                row_gap: Val::Px(18.0),
+                row_gap: Val::Px(14.0),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.06, 0.07, 0.07, 0.92)),
@@ -184,6 +187,14 @@ fn setup_pause_overlay(mut commands: Commands, score: Res<HerdScore>) {
                         ..default()
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.86)),
+                ),
+                (
+                    Text::new(highscore_text),
+                    TextFont {
+                        font_size: 19.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.82, 0.84, 0.78)),
                 ),
             ],
         )],

@@ -5,6 +5,7 @@ use std::{
 };
 
 use bevy::{
+    ecs::system::SystemParam,
     input::keyboard::{Key, KeyboardInput},
     prelude::*,
 };
@@ -19,6 +20,7 @@ const FINISH_OVERLAY_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.62);
 const FINISH_PANEL_COLOR: Color = Color::srgba(0.05, 0.07, 0.06, 0.94);
 const FINISH_TEXT_COLOR: Color = Color::srgb(0.96, 0.94, 0.86);
 const FINISH_MUTED_TEXT_COLOR: Color = Color::srgb(0.82, 0.84, 0.78);
+const FINISH_HIGHLIGHT_TEXT_COLOR: Color = Color::srgb(1.0, 0.86, 0.32);
 const DEFAULT_PLAYER_NAME: &str = "Player";
 const MAX_PLAYER_NAME_CHARS: usize = 14;
 
@@ -50,6 +52,7 @@ struct PendingHighscore {
     score: u32,
     seconds: f32,
     saved: bool,
+    saved_highscores: Option<Vec<HighscoreDisplayRow>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,8 +62,58 @@ struct StoredHighscore {
     seconds: f32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct HighscoreDisplayRow {
+    name: String,
+    score: u32,
+    seconds: f32,
+    highlighted: bool,
+}
+
+impl HighscoreDisplayRow {
+    fn from_stored(highscore: &StoredHighscore) -> Self {
+        Self {
+            name: highscore.name.clone(),
+            score: highscore.score,
+            seconds: highscore.seconds,
+            highlighted: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 struct FinishNameText;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+struct FinishInstructionText;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+struct FinishHighscoreRow(usize);
+
+type FinishHighscoreRowsQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static FinishHighscoreRow,
+        &'static mut Text,
+        &'static mut TextColor,
+        &'static mut Node,
+    ),
+>;
+type FinishUiFields<'w, 's> = ParamSet<
+    'w,
+    's,
+    (
+        Single<'w, &'static mut Text, With<FinishNameText>>,
+        Single<'w, &'static mut Text, With<FinishInstructionText>>,
+        FinishHighscoreRowsQuery<'w, 's>,
+    ),
+>;
+
+#[derive(SystemParam)]
+struct FinishUi<'w, 's> {
+    fields: FinishUiFields<'w, 's>,
+}
 
 pub(in crate::states::play) fn finish_state_plugin(app: &mut App) {
     app.init_resource::<RunTimer>()
@@ -98,7 +151,10 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
         score: score.score(),
         seconds: final_time,
         saved: false,
+        saved_highscores: None,
     });
+
+    let highscore_rows = display_rows_from_stored(&highscores);
 
     commands.spawn((
         FinishOverlay,
@@ -142,14 +198,7 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
                     },
                     TextColor(FINISH_TEXT_COLOR),
                 ),
-                (
-                    Text::new(highscore_text(&highscores)),
-                    TextFont {
-                        font_size: 19.0,
-                        ..default()
-                    },
-                    TextColor(FINISH_MUTED_TEXT_COLOR),
-                ),
+                highscore_list_node(&highscore_rows),
                 (
                     Text::new("Name: _"),
                     FinishNameText,
@@ -160,7 +209,8 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
                     TextColor(FINISH_TEXT_COLOR),
                 ),
                 (
-                    Text::new("Type name   Enter: save & new game   Esc: save & menu"),
+                    Text::new("Type name   Enter: save score   Esc: save & menu"),
+                    FinishInstructionText,
                     TextFont {
                         font_size: 17.0,
                         ..default()
@@ -176,40 +226,55 @@ fn handle_finished_input(
     input: Res<ButtonInput<KeyCode>>,
     mut keyboard_input: EventReader<KeyboardInput>,
     mut pending: ResMut<PendingHighscore>,
-    mut name_text: Single<&mut Text, With<FinishNameText>>,
+    mut finish_ui: FinishUi,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
-    for event in keyboard_input.read() {
-        if !event.state.is_pressed() {
-            continue;
-        }
+    if !pending.saved {
+        for event in keyboard_input.read() {
+            if !event.state.is_pressed() {
+                continue;
+            }
 
-        match (&event.logical_key, &event.text) {
-            (Key::Backspace, _) => {
-                pending.name.pop();
-            }
-            (_, Some(text)) => {
-                for character in text
-                    .chars()
-                    .filter(|character| is_name_character(*character))
-                {
-                    if pending.name.chars().count() >= MAX_PLAYER_NAME_CHARS {
-                        break;
-                    }
-                    pending.name.push(character);
+            match (&event.logical_key, &event.text) {
+                (Key::Backspace, _) => {
+                    pending.name.pop();
                 }
+                (_, Some(text)) => {
+                    for character in text
+                        .chars()
+                        .filter(|character| is_name_character(*character))
+                    {
+                        if pending.name.chars().count() >= MAX_PLAYER_NAME_CHARS {
+                            break;
+                        }
+                        pending.name.push(character);
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 
-    name_text.0 = format!("Name: {}", display_name_input(&pending.name));
+    finish_ui.fields.p0().0 = if pending.saved {
+        format!("Name: {}", normalized_player_name(&pending.name))
+    } else {
+        format!("Name: {}", display_name_input(&pending.name))
+    };
 
     if input.just_pressed(KeyCode::Enter) {
-        save_pending_highscore(&mut pending);
-        next_play_state.set(PlayState::Disabled);
-        next_game_state.set(GameState::RestartPlay);
+        if pending.saved {
+            next_play_state.set(PlayState::Disabled);
+            next_game_state.set(GameState::RestartPlay);
+        } else {
+            save_pending_highscore(&mut pending);
+            finish_ui.fields.p0().0 = format!("Name: {}", normalized_player_name(&pending.name));
+            finish_ui.fields.p1().0 = "Enter: new game   Esc: menu".to_string();
+
+            if let Some(rows) = pending.saved_highscores.clone() {
+                apply_highscore_rows(&rows, &mut finish_ui.fields.p2());
+            }
+        }
     } else if input.just_pressed(KeyCode::Escape) {
         save_pending_highscore(&mut pending);
         next_play_state.set(PlayState::Disabled);
@@ -223,19 +288,39 @@ fn save_pending_highscore(pending: &mut PendingHighscore) {
     }
 
     let name = normalized_player_name(&pending.name);
-    if let Err(err) = save_highscore(&name, pending.score, pending.seconds) {
-        eprintln!("Failed to save highscore: {err}");
+    match save_highscore(&name, pending.score, pending.seconds) {
+        Ok(highscores) => {
+            pending.saved_highscores = Some(highscores);
+        }
+        Err(err) => {
+            eprintln!("Failed to save highscore: {err}");
+        }
     }
 
     pending.saved = true;
 }
 
-fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<StoredHighscore>> {
-    let mut highscores = read_highscores()?;
-    highscores.push(StoredHighscore {
+fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<HighscoreDisplayRow>> {
+    let current = StoredHighscore {
         name: name.to_string(),
         score,
         seconds,
+    };
+    let mut highscores = read_highscores()?
+        .into_iter()
+        .map(|highscore| HighscoreDisplayRow {
+            name: highscore.name,
+            score: highscore.score,
+            seconds: highscore.seconds,
+            highlighted: false,
+        })
+        .collect::<Vec<_>>();
+
+    highscores.push(HighscoreDisplayRow {
+        name: current.name,
+        score: current.score,
+        seconds: current.seconds,
+        highlighted: true,
     });
     highscores.sort_by(|left, right| {
         right
@@ -255,6 +340,12 @@ fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<Stored
     }
 
     Ok(highscores)
+}
+
+pub(in crate::states::play) fn highscore_text_for_overlay() -> String {
+    highscore_text(&display_rows_from_stored(
+        &read_highscores().unwrap_or_default(),
+    ))
 }
 
 fn read_highscores() -> io::Result<Vec<StoredHighscore>> {
@@ -286,7 +377,14 @@ fn read_highscores() -> io::Result<Vec<StoredHighscore>> {
     Ok(highscores)
 }
 
-fn highscore_text(highscores: &[StoredHighscore]) -> String {
+fn display_rows_from_stored(highscores: &[StoredHighscore]) -> Vec<HighscoreDisplayRow> {
+    highscores
+        .iter()
+        .map(HighscoreDisplayRow::from_stored)
+        .collect()
+}
+
+fn highscore_text(highscores: &[HighscoreDisplayRow]) -> String {
     if highscores.is_empty() {
         return "Highscores\nNo scores yet".to_string();
     }
@@ -307,6 +405,91 @@ fn highscore_text(highscores: &[StoredHighscore]) -> String {
         .join("\n");
 
     format!("Highscores\n{rows}")
+}
+
+fn highscore_list_node(rows: &[HighscoreDisplayRow]) -> impl Bundle {
+    (
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            row_gap: Val::Px(5.0),
+            ..default()
+        },
+        children![
+            (
+                Text::new("Highscores"),
+                TextFont {
+                    font_size: 19.0,
+                    ..default()
+                },
+                TextColor(FINISH_MUTED_TEXT_COLOR),
+            ),
+            highscore_row_node(rows, 0),
+            highscore_row_node(rows, 1),
+            highscore_row_node(rows, 2),
+            highscore_row_node(rows, 3),
+            highscore_row_node(rows, 4),
+        ],
+    )
+}
+
+fn highscore_row_node(rows: &[HighscoreDisplayRow], index: usize) -> impl Bundle {
+    let mut node = Node::default();
+    let (label, color) = highscore_row_label(rows, index);
+    if label.is_empty() {
+        node.display = Display::None;
+    }
+
+    (
+        FinishHighscoreRow(index),
+        node,
+        Text::new(label),
+        TextFont {
+            font_size: 18.0,
+            ..default()
+        },
+        TextColor(color),
+    )
+}
+
+fn apply_highscore_rows(rows: &[HighscoreDisplayRow], query: &mut FinishHighscoreRowsQuery) {
+    for (row, mut text, mut color, mut node) in query {
+        let (label, text_color) = highscore_row_label(rows, row.0);
+        text.0 = label;
+        color.0 = text_color;
+        node.display = if text.0.is_empty() {
+            Display::None
+        } else {
+            Display::Flex
+        };
+    }
+}
+
+fn highscore_row_label(rows: &[HighscoreDisplayRow], index: usize) -> (String, Color) {
+    if rows.is_empty() && index == 0 {
+        return ("No scores yet".to_string(), FINISH_MUTED_TEXT_COLOR);
+    }
+
+    let Some(row) = rows.get(index) else {
+        return (String::new(), FINISH_MUTED_TEXT_COLOR);
+    };
+
+    let color = if row.highlighted {
+        FINISH_HIGHLIGHT_TEXT_COLOR
+    } else {
+        FINISH_MUTED_TEXT_COLOR
+    };
+
+    (
+        format!(
+            "{}. {}  {} - {}",
+            index + 1,
+            row.name,
+            row.score,
+            format_time(row.seconds)
+        ),
+        color,
+    )
 }
 
 fn display_name_input(name: &str) -> String {
