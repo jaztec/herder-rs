@@ -1,19 +1,25 @@
 use bevy::prelude::*;
 use rand::seq::{IndexedRandom, IteratorRandom};
 
-use crate::world::tile::{GridPosition, MapConfig, TileMap, WorldBounds, WorldTile};
+use crate::world::tile::{
+    FinishTilePosition, GridPosition, MapConfig, TileMap, WorldBounds, WorldTile,
+};
 
 const BACKGROUND_SECTION_SIZE: u32 = 150;
+const FINISH_EDGE_MARGIN_TILES: usize = 2;
 
-pub fn create_world(mut tiles: ResMut<TileMap>) {
+pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
     let mut rng = rand::rng();
 
     println!("World size: h{}-w{}", tiles.height(), tiles.width());
 
-    let finish_y = (0..tiles.height()).choose(&mut rng).unwrap();
-    let finish_x = (0..tiles.width()).choose(&mut rng).unwrap();
+    let finish_position = random_finish_position(&tiles, &mut rng);
+    commands.insert_resource(finish_position);
 
-    println!("Finish position set at y{}-x{}", finish_y, finish_x);
+    println!(
+        "Finish position set at y{}-x{}",
+        finish_position.y, finish_position.x
+    );
 
     for y in 0..tiles.height() {
         for x in 0..tiles.width() {
@@ -21,13 +27,27 @@ pub fn create_world(mut tiles: ResMut<TileMap>) {
             let tile_index = tile_options.choose(&mut rng).unwrap();
             let mut index = *tile_index;
 
-            if y == finish_y && x == finish_x {
+            if y == finish_position.y && x == finish_position.x {
                 index = 3;
             }
 
             tiles.set(x, y, index);
         }
     }
+}
+
+fn random_finish_position(tiles: &TileMap, rng: &mut impl rand::Rng) -> FinishTilePosition {
+    let x_margin = edge_margin_for(tiles.width(), FINISH_EDGE_MARGIN_TILES);
+    let y_margin = edge_margin_for(tiles.height(), FINISH_EDGE_MARGIN_TILES);
+
+    FinishTilePosition {
+        x: (x_margin..tiles.width() - x_margin).choose(rng).unwrap(),
+        y: (y_margin..tiles.height() - y_margin).choose(rng).unwrap(),
+    }
+}
+
+fn edge_margin_for(size: usize, preferred_margin: usize) -> usize {
+    preferred_margin.min(size.saturating_sub(1) / 2)
 }
 
 pub fn draw_world(

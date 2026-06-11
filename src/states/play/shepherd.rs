@@ -25,6 +25,7 @@ const SHEPHERD_WALK_UP: AnimationFrames = AnimationFrames::range(16, 19);
 const MIN_CAMERA_SCALE: f32 = 0.6;
 const MAX_CAMERA_SCALE: f32 = 2.0;
 const CAMERA_ZOOM_STEP: f32 = 0.12;
+const SHEPHERD_SPAWN_POSITION: Vec2 = Vec2::ZERO;
 
 #[derive(Component)]
 pub struct Shepherd;
@@ -57,7 +58,7 @@ pub fn setup_shepherd(
             custom_size: Some(Vec2::new(SHEPHERD_WIDTH as f32, SHEPHERD_HEIGHT as f32)),
             ..Sprite::from_atlas_image(handle, texture_atlas)
         },
-        Transform::from_xyz(0.0, 0.0, 10.0),
+        Transform::from_xyz(SHEPHERD_SPAWN_POSITION.x, SHEPHERD_SPAWN_POSITION.y, 10.0),
         Velocity {
             speed: SHEPHERD_SPEED,
         },
@@ -70,6 +71,10 @@ pub fn setup_shepherd(
             timer: Timer::from_seconds(SHEPHERD_ANIMATION_FRAME_TIME, TimerMode::Repeating),
         },
     ));
+}
+
+pub(in crate::states::play) fn shepherd_spawn_position() -> Vec2 {
+    SHEPHERD_SPAWN_POSITION
 }
 
 pub fn move_shepherd(

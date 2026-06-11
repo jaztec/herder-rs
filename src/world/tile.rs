@@ -40,6 +40,24 @@ impl MapConfig {
             0.0,
         )
     }
+
+    pub fn world_tile_position(&self, position: Vec2) -> Option<GridPosition> {
+        let world_size = self.world_size();
+        let left = -world_size.x / 2.0;
+        let top = world_size.y / 2.0;
+
+        let local_x = position.x - left;
+        let local_y = top - position.y;
+
+        if local_x < 0.0 || local_y < 0.0 || local_x >= world_size.x || local_y >= world_size.y {
+            return None;
+        }
+
+        Some(GridPosition {
+            x: (local_x / self.tile_size).floor() as usize,
+            y: (local_y / self.tile_size).floor() as usize,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Resource)]
@@ -109,6 +127,12 @@ impl From<&MapConfig> for TileMap {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub struct GridPosition {
+    pub x: usize,
+    pub y: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Resource)]
+pub struct FinishTilePosition {
     pub x: usize,
     pub y: usize,
 }

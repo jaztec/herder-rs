@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     states::play::sheep::SHEEP_COUNT,
-    world::{MapConfig, Tile, TileMap},
+    world::{FinishTilePosition, MapConfig},
 };
 
 const FINISH_SCORE: u32 = 40;
@@ -88,20 +88,15 @@ pub(in crate::states::play) struct ScoreHud;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 pub(in crate::states::play) struct ScoreText;
 
-pub fn setup_finish_area(mut commands: Commands, tiles: Res<TileMap>, config: Res<MapConfig>) {
-    for y in 0..tiles.height() {
-        for x in 0..tiles.width() {
-            if !tiles.get(x, y).is_some_and(|tile| *tile == Tile::Finish) {
-                continue;
-            }
-
-            commands.insert_resource(FinishArea {
-                center: config.tile_world_position(x, y).truncate(),
-                size: Vec2::splat(config.tile_size),
-            });
-            return;
-        }
-    }
+pub fn setup_finish_area(
+    mut commands: Commands,
+    finish: Res<FinishTilePosition>,
+    config: Res<MapConfig>,
+) {
+    commands.insert_resource(FinishArea {
+        center: config.tile_world_position(finish.x, finish.y).truncate(),
+        size: Vec2::splat(config.tile_size),
+    });
 }
 
 pub fn setup_herd_score(mut score: ResMut<HerdScore>) {

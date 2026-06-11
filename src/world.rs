@@ -4,4 +4,4 @@ mod tile;
 
 pub use builder::{create_world, draw_world};
 pub use camera::setup_camera;
-pub use tile::{MapConfig, Tile, TileMap, WorldBounds, WorldTile};
+pub use tile::{FinishTilePosition, GridPosition, MapConfig, TileMap, WorldBounds, WorldTile};

@@ -39,6 +39,7 @@ const WAYPOINT_EDGE_MARGIN: f32 = 30.0;
 const MAX_WAYPOINTS: usize = 500;
 const WAYPOINT_Z: f32 = 20.0;
 const DOG_Z: f32 = 11.0;
+const DOG_SPAWN_POSITION: Vec2 = Vec2::new(90.0, -90.0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
 pub enum DogMode {
@@ -97,8 +98,6 @@ pub fn setup_dog(
     let mut texture_atlas = TextureAtlas::from(atlas);
     texture_atlas.index = DOG_STAND_DOWN;
 
-    let spawn_position = Vec3::new(90.0, -90.0, DOG_Z);
-
     commands.spawn((
         Name::new(DOG_NAME),
         Dog,
@@ -106,7 +105,7 @@ pub fn setup_dog(
             custom_size: Some(Vec2::new(DOG_WIDTH as f32, DOG_HEIGHT as f32)),
             ..Sprite::from_atlas_image(handle, texture_atlas)
         },
-        Transform::from_translation(spawn_position),
+        Transform::from_xyz(DOG_SPAWN_POSITION.x, DOG_SPAWN_POSITION.y, DOG_Z),
         Velocity { speed: DOG_SPEED },
         Facing {
             direction: FacingDirection::Down,
@@ -118,6 +117,10 @@ pub fn setup_dog(
             timer: Timer::from_seconds(DOG_ANIMATION_FRAME_TIME, TimerMode::Repeating),
         },
     ));
+}
+
+pub(in crate::states::play) fn dog_spawn_position() -> Vec2 {
+    DOG_SPAWN_POSITION
 }
 
 pub fn setup_dog_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
