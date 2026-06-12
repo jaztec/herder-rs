@@ -1,10 +1,18 @@
 # Roadmap
 
+Recently completed terrain and route work:
+
+- water, flowers, and paths have generated autotile atlases
+- water blocks actors and dog routes
+- paths, grass, and flowers apply movement-speed modifiers
+- map generation removes disconnected walkable islands
+- dog routes use A* over a 3x3 subgrid to avoid water and use terrain costs
+
 Likely next areas:
 
-- map obstacles that interact with pathing and sheep movement
+- dedicated obstacle tiles or objects beyond water
 - better menu presentation using the converted header art
-- more robust dog route editing
+- more robust dog route editing, preview, and cancellation
 - stronger visual feedback when sheep are scared or scored
 - configurable map size and sheep count
 - highscore reset or profile management

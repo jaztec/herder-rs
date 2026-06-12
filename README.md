@@ -30,8 +30,12 @@ just run
 ## Current Features
 
 - Procedural tile map with finish placement constraints
+- Generated autotile terrain for grass, flowers, water, and paths
+- Terrain walkability and movement-speed rules
+- Island-free walkable map generation
 - Animated shepherd, dog, and sheep sprites from atlas sheets
-- Dog waypoint routes and bark sounds
+- Dog A* routes that avoid water and prefer faster terrain
+- Dog bark sounds
 - Sheep flocking, fear propagation, bravery, wandering, and finish scoring
 - Off-screen indicators for finish, dog, and sheep clusters
 - Pause and finish overlays

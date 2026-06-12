@@ -43,11 +43,16 @@ The docs include private items so internal Bevy systems, components, resources, 
 
 Tile rendering and tile gameplay rules are deliberately separate. The renderer
 chooses sprite-atlas frames from neighboring tiles, while `Tile` and `TileMap`
-provide walkability and movement-speed information. This keeps the next A*
-implementation focused on map costs instead of sprite details.
+provide walkability and movement-speed information. This keeps movement and
+pathfinding focused on map costs instead of sprite details.
 
 The dog route system now uses the shared world pathfinder. It asks for a path
 between route targets and receives world-space corner waypoints, so the dog
 code does not need to know the internals of A*. The pathfinder navigates on a
 3x3 subgrid per tile to avoid route markers snapping too aggressively to tile
 centers.
+
+The shared speed model is deliberately simple: actor systems start with a base
+movement speed and multiply it by `Tile::movement_speed_multiplier`. The same
+tile multiplier is inverted into a pathfinding cost, keeping movement tuning
+and route selection aligned.

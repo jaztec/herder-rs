@@ -21,21 +21,30 @@ paths connect as straight segments, turns, T-junctions, or crossings.
 
 Terrain also has gameplay semantics:
 
-| Tile | Walkable | Movement |
+| Tile | Walkable | Movement multiplier |
 | --- | --- | --- |
-| Path | Yes | Fast |
-| Grass | Yes | Normal |
-| Flowers | Yes | Slow |
-| Finish | Yes | Normal |
-| Water | No | Blocked |
+| Path | Yes | `1.25` |
+| Grass | Yes | `1.0` |
+| Flowers | Yes | `0.72` |
+| Finish | Yes | `1.0` |
+| Water | No | `0.0` |
 
-The movement systems use the same tile metadata that future pathfinding should
-use: water blocks actor rectangles, while walkable tiles expose movement speed
+The movement systems and pathfinder use the same tile metadata: water blocks
+actor rectangles, while walkable tiles expose movement speed
 multipliers.
+
+Terrain multipliers apply to shepherd, dog, and sheep movement. The dog
+pathfinder also converts those multipliers into movement costs, so routes prefer
+paths, treat grass and finish tiles as normal, avoid flowers when possible, and
+reject water.
 
 ## Shepherd
 
 The shepherd is controlled with `WASD`. The camera follows the shepherd and supports mouse-wheel zoom. Movement is clamped to the world bounds.
+
+The current base speed is `190` world units per second before terrain
+modifiers. This intentionally makes the shepherd slower than panicked sheep and
+much slower than the dog.
 
 ## Dog
 
@@ -47,6 +56,9 @@ into walkable sub-tile centers, simplified to corner waypoints, and will avoid
 water. The pathfinder still uses the parent terrain tile for movement cost, so
 paths are favored over grass and flowers are less attractive.
 
+The current base dog speed is `430` world units per second before terrain
+modifiers, making the dog the fastest actor by a clear margin.
+
 The herd cannot spawn on the same tile as the shepherd or the dog.
 
 ## Sheep
@@ -57,6 +69,14 @@ Sheep spawn as a herd cluster. The cluster center is selected away from the fini
 - fallback: the furthest available valid distance when the map is too small
 
 Each sheep has a random bravery value. Bravery affects panic speed and flocking behavior.
+
+Sheep movement speeds are behavior dependent before terrain modifiers:
+
+| Behavior | Base speed |
+| --- | --- |
+| Wander | `38` |
+| Follow braver sheep | up to roughly `55`, scaled by courage gap |
+| Panic | `190 + bravery * 10`, scaled by fear strength |
 
 Important behavior:
 
