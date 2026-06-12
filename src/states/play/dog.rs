@@ -23,7 +23,7 @@ pub struct Dog;
 /// Display/debug name for the spawned dog entity.
 pub const DOG_NAME: &str = "Dog";
 /// Dog movement speed in world units per second.
-pub const DOG_SPEED: f32 = 360.0;
+pub const DOG_SPEED: f32 = 430.0;
 /// Dog sprite frame width.
 pub const DOG_WIDTH: u32 = 75;
 /// Dog sprite frame height.

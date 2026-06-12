@@ -23,8 +23,8 @@ pub(super) const LEADER_FOLLOW_RADIUS: f32 = 320.0;
 pub(super) const LEADER_STOP_RADIUS: f32 = 80.0;
 pub(super) const LEADER_FOLLOW_SPEED: f32 = 55.0;
 
-pub(super) const SHEEP_SCARED_BASE_SPEED: f32 = 120.0;
-pub(super) const SHEEP_BRAVERY_SPEED: f32 = 16.0;
+pub(super) const SHEEP_SCARED_BASE_SPEED: f32 = 190.0;
+pub(super) const SHEEP_BRAVERY_SPEED: f32 = 10.0;
 pub(super) const SHEEP_WANDER_SPEED: f32 = 38.0;
 pub(super) const SHEEP_SEPARATION_RADIUS: f32 = 46.0;
 

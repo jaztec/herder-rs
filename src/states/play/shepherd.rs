@@ -13,7 +13,7 @@ use crate::{
 /// Display/debug name for the spawned shepherd entity.
 pub const SHEPHERD_NAME: &str = "Shepherd";
 /// Shepherd movement speed in world units per second.
-pub const SHEPHERD_SPEED: f32 = 260.0;
+pub const SHEPHERD_SPEED: f32 = 190.0;
 /// Shepherd sprite frame width.
 pub const SHEPHERD_WIDTH: u32 = 50;
 /// Shepherd sprite frame height.
