@@ -13,7 +13,7 @@ use crate::{
         },
         shepherd::Shepherd,
     },
-    world::WorldBounds,
+    world::{MapConfig, TileMap, WorldBounds},
 };
 
 /// Marker component for the dog entity.
@@ -155,9 +155,39 @@ pub struct DogRouteInputParams<'w> {
     camera: Single<'w, (&'static Camera, &'static GlobalTransform), With<Camera2d>>,
     asset_server: Res<'w, AssetServer>,
     bounds: Res<'w, WorldBounds>,
+    config: Res<'w, MapConfig>,
+    tiles: Res<'w, TileMap>,
     route: ResMut<'w, DogRoute>,
     dog_mode: Single<'w, &'static mut DogMode, With<Dog>>,
     dog_audio: Res<'w, DogAudio>,
+}
+
+#[derive(SystemParam)]
+pub struct DogMoveParams<'w> {
+    time: Res<'w, Time>,
+    bounds: Res<'w, WorldBounds>,
+    config: Res<'w, MapConfig>,
+    tiles: Res<'w, TileMap>,
+    dog_audio: Res<'w, DogAudio>,
+    route: ResMut<'w, DogRoute>,
+    dog: Single<
+        'w,
+        (
+            &'static mut Transform,
+            &'static Velocity,
+            &'static mut Facing,
+            &'static mut Moving,
+            &'static mut DogMode,
+        ),
+        With<Dog>,
+    >,
+    shepherd: Single<'w, &'static Transform, (With<Shepherd>, Without<Dog>)>,
+}
+
+struct WaypointTerrain<'a> {
+    bounds: &'a WorldBounds,
+    config: &'a MapConfig,
+    tiles: &'a TileMap,
 }
 
 /// Handle mouse input for route drawing and dog commands.
@@ -168,6 +198,8 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
         camera,
         asset_server,
         bounds,
+        config,
+        tiles,
         mut route,
         mut dog_mode,
         dog_audio,
@@ -181,7 +213,11 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
             add_waypoint(
                 &mut commands,
                 &asset_server,
-                &bounds,
+                WaypointTerrain {
+                    bounds: &bounds,
+                    config: &config,
+                    tiles: &tiles,
+                },
                 &mut route,
                 position,
                 true,
@@ -196,7 +232,11 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
         add_waypoint(
             &mut commands,
             &asset_server,
-            &bounds,
+            WaypointTerrain {
+                bounds: &bounds,
+                config: &config,
+                tiles: &tiles,
+            },
             &mut route,
             position,
             false,
@@ -208,7 +248,11 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
             add_waypoint(
                 &mut commands,
                 &asset_server,
-                &bounds,
+                WaypointTerrain {
+                    bounds: &bounds,
+                    config: &config,
+                    tiles: &tiles,
+                },
                 &mut route,
                 position,
                 true,
@@ -240,24 +284,17 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
 }
 
 /// Move the dog according to its current behavior mode.
-pub fn move_dog(
-    mut commands: Commands,
-    time: Res<Time>,
-    bounds: Res<WorldBounds>,
-    dog_audio: Res<DogAudio>,
-    mut route: ResMut<DogRoute>,
-    mut dog: Single<
-        (
-            &mut Transform,
-            &Velocity,
-            &mut Facing,
-            &mut Moving,
-            &mut DogMode,
-        ),
-        With<Dog>,
-    >,
-    shepherd: Single<&Transform, (With<Shepherd>, Without<Dog>)>,
-) {
+pub fn move_dog(mut commands: Commands, params: DogMoveParams) {
+    let DogMoveParams {
+        time,
+        bounds,
+        config,
+        tiles,
+        dog_audio,
+        mut route,
+        mut dog,
+        shepherd,
+    } = params;
     let dog_position = dog.0.translation.truncate();
 
     let (target, arrival_radius) = match *dog.4 {
@@ -304,14 +341,22 @@ pub fn move_dog(
     dog.2.direction = direction_to_facing(direction);
     dog.3.is_moving = true;
 
-    let step = dog.1.speed * time.delta_secs();
+    let speed_multiplier = tiles
+        .movement_speed_at_world_position(&config, dog_position)
+        .max(0.1);
+    let step = dog.1.speed * speed_multiplier * time.delta_secs();
     let movement = if *dog.4 == DogMode::FollowingRoute {
         direction * step.min(distance)
     } else {
         direction * step.min(distance - arrival_radius)
     };
-    dog.0.translation += movement.extend(0.0);
-    clamp_to_world(&mut dog.0.translation, &bounds);
+
+    let half_size = Vec2::new(DOG_WIDTH as f32 / 2.0, DOG_HEIGHT as f32 / 2.0);
+    let next_position =
+        move_with_terrain(dog_position, movement, half_size, &bounds, &config, &tiles);
+    dog.3.is_moving = next_position.distance_squared(dog_position) > 1.0;
+    dog.0.translation.x = next_position.x;
+    dog.0.translation.y = next_position.y;
 
     if *dog.4 == DogMode::FollowingRoute {
         let dog_position = dog.0.translation.truncate();
@@ -418,12 +463,17 @@ fn cursor_world_position(window: &Window, camera: &(&Camera, &GlobalTransform)) 
 fn add_waypoint(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    bounds: &WorldBounds,
+    terrain: WaypointTerrain,
     route: &mut DogRoute,
     position: Vec2,
     force: bool,
 ) {
-    if route.points.len() >= MAX_WAYPOINTS || !is_inside_world(position, bounds) {
+    if route.points.len() >= MAX_WAYPOINTS
+        || !is_inside_world(position, terrain.bounds)
+        || !terrain
+            .tiles
+            .is_world_position_walkable(terrain.config, position)
+    {
         return;
     }
 
@@ -488,6 +538,32 @@ fn clamp_to_world(translation: &mut Vec3, bounds: &WorldBounds) {
     translation.y = translation
         .y
         .clamp(-half_world.y + half_size.y, half_world.y - half_size.y);
+}
+
+fn move_with_terrain(
+    current: Vec2,
+    movement: Vec2,
+    half_size: Vec2,
+    bounds: &WorldBounds,
+    config: &MapConfig,
+    tiles: &TileMap,
+) -> Vec2 {
+    let mut position = current;
+    let mut x_translation = Vec3::new(position.x + movement.x, position.y, 0.0);
+    clamp_to_world(&mut x_translation, bounds);
+    let x_position = x_translation.truncate();
+    if tiles.is_world_rect_walkable(config, x_position, half_size) {
+        position.x = x_position.x;
+    }
+
+    let mut y_translation = Vec3::new(position.x, position.y + movement.y, 0.0);
+    clamp_to_world(&mut y_translation, bounds);
+    let y_position = y_translation.truncate();
+    if tiles.is_world_rect_walkable(config, y_position, half_size) {
+        position.y = y_position.y;
+    }
+
+    position
 }
 
 fn play_bark(commands: &mut Commands, bark: Handle<AudioSource>) {

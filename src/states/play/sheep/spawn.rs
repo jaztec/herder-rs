@@ -21,7 +21,7 @@ use crate::{
         },
         shepherd::shepherd_spawn_position,
     },
-    world::{FinishTilePosition, GridPosition, MapConfig, WorldBounds},
+    world::{FinishTilePosition, GridPosition, MapConfig, TileMap, WorldBounds},
 };
 
 const HERD_MIN_FINISH_DISTANCE_TILES: f32 = 7.0;
@@ -35,6 +35,7 @@ pub(in crate::states::play) fn setup_herd(
     bounds: Res<WorldBounds>,
     config: Res<MapConfig>,
     finish: Res<FinishTilePosition>,
+    tiles: Res<TileMap>,
 ) {
     commands.spawn((Name::new("Herd"), Herd));
 
@@ -50,14 +51,21 @@ pub(in crate::states::play) fn setup_herd(
 
     let mut rng = rand::rng();
     let forbidden_tiles = actor_spawn_tiles(&config);
-    let cluster_center =
-        random_cluster_center(&bounds, &config, &finish, &forbidden_tiles, &mut rng);
+    let cluster_center = random_cluster_center(
+        &bounds,
+        &config,
+        &tiles,
+        &finish,
+        &forbidden_tiles,
+        &mut rng,
+    );
 
     for index in 0..SHEEP_COUNT {
         let spawn_position = random_sheep_spawn_position(
             cluster_center,
             &bounds,
             &config,
+            &tiles,
             &forbidden_tiles,
             &mut rng,
         );
@@ -99,11 +107,12 @@ pub(in crate::states::play) fn setup_herd(
 fn random_cluster_center(
     bounds: &WorldBounds,
     config: &MapConfig,
+    tiles: &TileMap,
     finish: &FinishTilePosition,
     forbidden_tiles: &[GridPosition],
     rng: &mut impl Rng,
 ) -> Vec2 {
-    let candidates = cluster_center_candidates(bounds, config, forbidden_tiles);
+    let candidates = cluster_center_candidates(bounds, config, tiles, forbidden_tiles);
     if candidates.is_empty() {
         return Vec2::ZERO;
     }
@@ -128,6 +137,7 @@ fn random_cluster_center(
 fn cluster_center_candidates(
     bounds: &WorldBounds,
     config: &MapConfig,
+    tiles: &TileMap,
     forbidden_tiles: &[GridPosition],
 ) -> Vec<ClusterCenterCandidate> {
     let half_world = bounds.size / 2.0;
@@ -145,6 +155,11 @@ fn cluster_center_candidates(
             }
 
             let position = config.tile_world_position(x, y).truncate();
+            let half_size = Vec2::new(SHEEP_WIDTH as f32 / 2.0, SHEEP_HEIGHT as f32 / 2.0);
+            if !tiles.is_world_rect_walkable(config, position, half_size) {
+                continue;
+            }
+
             if position.x < -half_world.x + margin.x
                 || position.x > half_world.x - margin.x
                 || position.y < -half_world.y + margin.y
@@ -164,6 +179,7 @@ fn random_sheep_spawn_position(
     cluster_center: Vec2,
     bounds: &WorldBounds,
     config: &MapConfig,
+    tiles: &TileMap,
     forbidden_tiles: &[GridPosition],
     rng: &mut impl Rng,
 ) -> Vec2 {
@@ -178,7 +194,10 @@ fn random_sheep_spawn_position(
         let mut spawn_position = cluster_center + spawn_offset;
         clamp_position_to_world(&mut spawn_position, bounds);
 
-        if !is_forbidden_tile(spawn_position, config, forbidden_tiles) {
+        let half_size = Vec2::new(SHEEP_WIDTH as f32 / 2.0, SHEEP_HEIGHT as f32 / 2.0);
+        if !is_forbidden_tile(spawn_position, config, forbidden_tiles)
+            && tiles.is_world_rect_walkable(config, spawn_position, half_size)
+        {
             return spawn_position;
         }
     }

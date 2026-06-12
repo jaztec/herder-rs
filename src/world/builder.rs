@@ -1,5 +1,7 @@
 //! Procedural world creation and tile rendering systems.
 
+use std::collections::VecDeque;
+
 use bevy::prelude::*;
 use rand::{Rng, seq::IteratorRandom};
 
@@ -65,6 +67,9 @@ pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
         &mut rng,
     );
     paint_paths(&mut tiles, path_count, &mut rng);
+    carve_start_to_finish_corridor(&mut tiles, finish_position);
+    clear_start_area(&mut tiles);
+    remove_disconnected_walkable_regions(&mut tiles);
     tiles.set(finish_position.x, finish_position.y, Tile::Finish);
 }
 
@@ -151,6 +156,90 @@ fn paint_paths(tiles: &mut TileMap, count: usize, rng: &mut impl Rng) {
                 CardinalDirection::East => x = (x + 1).min(tiles.width() - 1),
                 CardinalDirection::South => y = (y + 1).min(tiles.height() - 1),
                 CardinalDirection::West => x = x.saturating_sub(1),
+            }
+        }
+    }
+}
+
+fn clear_start_area(tiles: &mut TileMap) {
+    let center_x = tiles.width() / 2;
+    let center_y = tiles.height() / 2;
+
+    clear_walkable_radius(tiles, center_x, center_y, 1, Tile::Grass);
+}
+
+fn carve_start_to_finish_corridor(tiles: &mut TileMap, finish: FinishTilePosition) {
+    let mut x = tiles.width() / 2;
+    let mut y = tiles.height() / 2;
+
+    while x != finish.x {
+        clear_walkable_radius(tiles, x, y, 1, Tile::Path);
+        if x < finish.x {
+            x += 1;
+        } else {
+            x -= 1;
+        }
+    }
+
+    while y != finish.y {
+        clear_walkable_radius(tiles, x, y, 1, Tile::Path);
+        if y < finish.y {
+            y += 1;
+        } else {
+            y -= 1;
+        }
+    }
+
+    clear_walkable_radius(tiles, x, y, 1, Tile::Path);
+}
+
+fn clear_walkable_radius(
+    tiles: &mut TileMap,
+    center_x: usize,
+    center_y: usize,
+    radius: usize,
+    tile: Tile,
+) {
+    for y in center_y.saturating_sub(radius)..=(center_y + radius).min(tiles.height() - 1) {
+        for x in center_x.saturating_sub(radius)..=(center_x + radius).min(tiles.width() - 1) {
+            if x.abs_diff(center_x) <= radius && y.abs_diff(center_y) <= radius {
+                tiles.set(x, y, tile);
+            }
+        }
+    }
+}
+
+fn remove_disconnected_walkable_regions(tiles: &mut TileMap) {
+    let start_x = tiles.width() / 2;
+    let start_y = tiles.height() / 2;
+    let mut reachable = vec![vec![false; tiles.width()]; tiles.height()];
+    let mut queue = VecDeque::from([(start_x, start_y)]);
+
+    while let Some((x, y)) = queue.pop_front() {
+        if reachable[y][x] || !tiles.get(x, y).is_some_and(|tile| tile.is_walkable()) {
+            continue;
+        }
+
+        reachable[y][x] = true;
+
+        if x > 0 {
+            queue.push_back((x - 1, y));
+        }
+        if x + 1 < tiles.width() {
+            queue.push_back((x + 1, y));
+        }
+        if y > 0 {
+            queue.push_back((x, y - 1));
+        }
+        if y + 1 < tiles.height() {
+            queue.push_back((x, y + 1));
+        }
+    }
+
+    for (y, row) in reachable.iter().enumerate() {
+        for (x, is_reachable) in row.iter().enumerate() {
+            if !is_reachable && tiles.get(x, y).is_some_and(|tile| tile.is_walkable()) {
+                tiles.set(x, y, Tile::Water);
             }
         }
     }

@@ -110,6 +110,42 @@ impl TileMap {
         self.tiles.get(y)?.get(x)
     }
 
+    /// Return the tile containing a world-space position.
+    pub fn tile_at_world_position(&self, config: &MapConfig, position: Vec2) -> Option<Tile> {
+        let position = config.world_tile_position(position)?;
+        self.get(position.x, position.y).copied()
+    }
+
+    /// Return true when the world-space position sits on a walkable tile.
+    pub fn is_world_position_walkable(&self, config: &MapConfig, position: Vec2) -> bool {
+        self.tile_at_world_position(config, position)
+            .is_some_and(|tile| tile.is_walkable())
+    }
+
+    /// Return true when an actor-sized rectangle fits on walkable terrain.
+    pub fn is_world_rect_walkable(
+        &self,
+        config: &MapConfig,
+        center: Vec2,
+        half_size: Vec2,
+    ) -> bool {
+        [
+            center,
+            center + Vec2::new(-half_size.x, -half_size.y),
+            center + Vec2::new(half_size.x, -half_size.y),
+            center + Vec2::new(-half_size.x, half_size.y),
+            center + Vec2::new(half_size.x, half_size.y),
+        ]
+        .into_iter()
+        .all(|position| self.is_world_position_walkable(config, position))
+    }
+
+    /// Movement multiplier for the tile containing a world-space position.
+    pub fn movement_speed_at_world_position(&self, config: &MapConfig, position: Vec2) -> f32 {
+        self.tile_at_world_position(config, position)
+            .map_or(0.0, |tile| tile.movement_speed_multiplier())
+    }
+
     /// Set the tile at the given position.
     pub fn set<T>(&mut self, x: usize, y: usize, tile: T)
     where
@@ -170,7 +206,7 @@ pub enum Tile {
     /// Basic grass tile.
     #[default]
     Grass,
-    /// Water tile. Currently still walkable.
+    /// Water tile that blocks actor movement.
     Water,
     /// Decorative flower tile.
     Flowers,
@@ -185,7 +221,19 @@ impl Tile {
     #[inline]
     pub fn is_walkable(&self) -> bool {
         match self {
-            Tile::Grass | Tile::Water | Tile::Flowers | Tile::Finish | Tile::Path => true,
+            Tile::Grass | Tile::Flowers | Tile::Finish | Tile::Path => true,
+            Tile::Water => false,
+        }
+    }
+
+    /// Relative movement speed for actors crossing this terrain.
+    #[inline]
+    pub fn movement_speed_multiplier(&self) -> f32 {
+        match self {
+            Tile::Path => 1.25,
+            Tile::Grass | Tile::Finish => 1.0,
+            Tile::Flowers => 0.72,
+            Tile::Water => 0.0,
         }
     }
 

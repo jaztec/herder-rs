@@ -38,3 +38,10 @@ just docs-code
 ```
 
 The docs include private items so internal Bevy systems, components, resources, and helper functions are visible.
+
+## Terrain Semantics
+
+Tile rendering and tile gameplay rules are deliberately separate. The renderer
+chooses sprite-atlas frames from neighboring tiles, while `Tile` and `TileMap`
+provide walkability and movement-speed information. This keeps the next A*
+implementation focused on map costs instead of sprite details.

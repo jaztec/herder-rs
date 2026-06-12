@@ -7,7 +7,7 @@ use crate::{
     states::play::common::{
         AnimationFrames, AnimationTimer, Facing, FacingDirection, Moving, Velocity, load_texture,
     },
-    world::WorldBounds,
+    world::{MapConfig, TileMap, WorldBounds},
 };
 
 /// Display/debug name for the spawned shepherd entity.
@@ -92,6 +92,8 @@ pub fn move_shepherd(
     input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     bounds: Res<WorldBounds>,
+    config: Res<MapConfig>,
+    tiles: Res<TileMap>,
 ) {
     let mut velocity = Vec2::ZERO;
 
@@ -114,21 +116,59 @@ pub fn move_shepherd(
 
     shepherd.3.is_moving = velocity.length_squared() > 0.0;
 
-    let move_delta = velocity.normalize_or_zero() * shepherd.1.speed * time.delta_secs();
-    shepherd.0.translation += move_delta.extend(0.);
-
     let half_size = Vec2::new(SHEPHERD_WIDTH as f32 / 2.0, SHEPHERD_HEIGHT as f32 / 2.0);
+    let speed_multiplier = tiles
+        .movement_speed_at_world_position(&config, shepherd.0.translation.truncate())
+        .max(0.1);
+    let move_delta =
+        velocity.normalize_or_zero() * shepherd.1.speed * speed_multiplier * time.delta_secs();
+
+    let next_position = move_with_terrain(
+        shepherd.0.translation.truncate(),
+        move_delta,
+        half_size,
+        &bounds,
+        &config,
+        &tiles,
+    );
+    shepherd.0.translation.x = next_position.x;
+    shepherd.0.translation.y = next_position.y;
+}
+
+fn move_with_terrain(
+    current: Vec2,
+    movement: Vec2,
+    half_size: Vec2,
+    bounds: &WorldBounds,
+    config: &MapConfig,
+    tiles: &TileMap,
+) -> Vec2 {
+    let mut position = current;
+    let x_position =
+        clamp_position_to_world(position + Vec2::new(movement.x, 0.0), half_size, bounds);
+    if tiles.is_world_rect_walkable(config, x_position, half_size) {
+        position.x = x_position.x;
+    }
+
+    let y_position =
+        clamp_position_to_world(position + Vec2::new(0.0, movement.y), half_size, bounds);
+    if tiles.is_world_rect_walkable(config, y_position, half_size) {
+        position.y = y_position.y;
+    }
+
+    position
+}
+
+fn clamp_position_to_world(position: Vec2, half_size: Vec2, bounds: &WorldBounds) -> Vec2 {
     let half_world = bounds.size / 2.0;
-    shepherd.0.translation.x = shepherd
-        .0
-        .translation
-        .x
-        .clamp(-half_world.x + half_size.x, half_world.x - half_size.x);
-    shepherd.0.translation.y = shepherd
-        .0
-        .translation
-        .y
-        .clamp(-half_world.y + half_size.y, half_world.y - half_size.y);
+    Vec2::new(
+        position
+            .x
+            .clamp(-half_world.x + half_size.x, half_world.x - half_size.x),
+        position
+            .y
+            .clamp(-half_world.y + half_size.y, half_world.y - half_size.y),
+    )
 }
 
 /// Select the shepherd's standing or walking atlas range from movement state.
