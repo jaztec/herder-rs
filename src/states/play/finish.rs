@@ -12,7 +12,10 @@ use bevy::{
     prelude::*,
 };
 
-use crate::states::{GameState, game_state::despawn_screen, play::score::HerdScore};
+use crate::{
+    run_config::RunConfig,
+    states::{GameState, game_state::despawn_screen, play::score::HerdScore},
+};
 
 use super::plugin::PlayState;
 
@@ -151,9 +154,14 @@ pub(in crate::states::play) fn finish_when_herd_complete(
     }
 }
 
-fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Res<RunTimer>) {
+fn setup_finish_overlay(
+    mut commands: Commands,
+    score: Res<HerdScore>,
+    timer: Res<RunTimer>,
+    run_config: Res<RunConfig>,
+) {
     let final_time = timer.elapsed_seconds();
-    let highscores = read_highscores().unwrap_or_default();
+    let highscores = read_highscores(&run_config).unwrap_or_default();
 
     commands.insert_resource(PendingHighscore {
         name: String::new(),
@@ -164,6 +172,7 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
     });
 
     let highscore_rows = display_rows_from_stored(&highscores);
+    let highscore_title = run_config.score_table_name();
 
     commands.spawn((
         FinishOverlay,
@@ -207,7 +216,7 @@ fn setup_finish_overlay(mut commands: Commands, score: Res<HerdScore>, timer: Re
                     },
                     TextColor(FINISH_TEXT_COLOR),
                 ),
-                highscore_list_node(&highscore_rows),
+                highscore_list_node(&highscore_rows, &highscore_title),
                 (
                     Text::new("Name: _"),
                     FinishNameText,
@@ -236,6 +245,7 @@ fn handle_finished_input(
     mut keyboard_input: EventReader<KeyboardInput>,
     mut pending: ResMut<PendingHighscore>,
     mut finish_ui: FinishUi,
+    run_config: Res<RunConfig>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
@@ -276,7 +286,7 @@ fn handle_finished_input(
             next_play_state.set(PlayState::Disabled);
             next_game_state.set(GameState::RestartPlay);
         } else {
-            save_pending_highscore(&mut pending);
+            save_pending_highscore(&mut pending, &run_config);
             finish_ui.fields.p0().0 = format!("Name: {}", normalized_player_name(&pending.name));
             finish_ui.fields.p1().0 = "Enter: new game   Esc: menu".to_string();
 
@@ -285,19 +295,19 @@ fn handle_finished_input(
             }
         }
     } else if input.just_pressed(KeyCode::Escape) {
-        save_pending_highscore(&mut pending);
+        save_pending_highscore(&mut pending, &run_config);
         next_play_state.set(PlayState::Disabled);
         next_game_state.set(GameState::Menu);
     }
 }
 
-fn save_pending_highscore(pending: &mut PendingHighscore) {
+fn save_pending_highscore(pending: &mut PendingHighscore, run_config: &RunConfig) {
     if pending.saved {
         return;
     }
 
     let name = normalized_player_name(&pending.name);
-    match save_highscore(&name, pending.score, pending.seconds) {
+    match save_highscore(&name, pending.score, pending.seconds, run_config) {
         Ok(highscores) => {
             pending.saved_highscores = Some(highscores);
         }
@@ -309,13 +319,18 @@ fn save_pending_highscore(pending: &mut PendingHighscore) {
     pending.saved = true;
 }
 
-fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<HighscoreDisplayRow>> {
+fn save_highscore(
+    name: &str,
+    score: u32,
+    seconds: f32,
+    run_config: &RunConfig,
+) -> io::Result<Vec<HighscoreDisplayRow>> {
     let current = StoredHighscore {
         name: name.to_string(),
         score,
         seconds,
     };
-    let mut highscores = read_highscores()?
+    let mut highscores = read_highscores(run_config)?
         .into_iter()
         .map(|highscore| HighscoreDisplayRow {
             name: highscore.name,
@@ -339,7 +354,7 @@ fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<Highsc
     });
     highscores.truncate(MAX_HIGHSCORES);
 
-    let mut file = fs::File::create(HIGHSCORE_FILE)?;
+    let mut file = fs::File::create(highscore_file_name(run_config))?;
     for highscore in &highscores {
         writeln!(
             file,
@@ -352,18 +367,20 @@ fn save_highscore(name: &str, score: u32, seconds: f32) -> io::Result<Vec<Highsc
 }
 
 /// Highscore list text used by overlays outside the finish screen.
-pub(in crate::states::play) fn highscore_text_for_overlay() -> String {
-    highscore_text(&display_rows_from_stored(
-        &read_highscores().unwrap_or_default(),
-    ))
+pub(in crate::states::play) fn highscore_text_for_overlay(run_config: &RunConfig) -> String {
+    highscore_text(
+        &run_config.score_table_name(),
+        &display_rows_from_stored(&read_highscores(run_config).unwrap_or_default()),
+    )
 }
 
-fn read_highscores() -> io::Result<Vec<StoredHighscore>> {
-    if !Path::new(HIGHSCORE_FILE).exists() {
+fn read_highscores(run_config: &RunConfig) -> io::Result<Vec<StoredHighscore>> {
+    let file_name = highscore_file_name(run_config);
+    if !Path::new(&file_name).exists() {
         return Ok(Vec::new());
     }
 
-    let contents = fs::read_to_string(HIGHSCORE_FILE)?;
+    let contents = fs::read_to_string(file_name)?;
     let highscores = contents
         .lines()
         .filter_map(|line| {
@@ -394,9 +411,9 @@ fn display_rows_from_stored(highscores: &[StoredHighscore]) -> Vec<HighscoreDisp
         .collect()
 }
 
-fn highscore_text(highscores: &[HighscoreDisplayRow]) -> String {
+fn highscore_text(title: &str, highscores: &[HighscoreDisplayRow]) -> String {
     if highscores.is_empty() {
-        return "Highscores\nNo scores yet".to_string();
+        return format!("Highscores - {title}\nNo scores yet");
     }
 
     let rows = highscores
@@ -414,10 +431,10 @@ fn highscore_text(highscores: &[HighscoreDisplayRow]) -> String {
         .collect::<Vec<_>>()
         .join("\n");
 
-    format!("Highscores\n{rows}")
+    format!("Highscores - {title}\n{rows}")
 }
 
-fn highscore_list_node(rows: &[HighscoreDisplayRow]) -> impl Bundle {
+fn highscore_list_node(rows: &[HighscoreDisplayRow], title: &str) -> impl Bundle {
     (
         Node {
             flex_direction: FlexDirection::Column,
@@ -427,7 +444,7 @@ fn highscore_list_node(rows: &[HighscoreDisplayRow]) -> impl Bundle {
         },
         children![
             (
-                Text::new("Highscores"),
+                Text::new(format!("Highscores - {title}")),
                 TextFont {
                     font_size: 19.0,
                     ..default()
@@ -441,6 +458,15 @@ fn highscore_list_node(rows: &[HighscoreDisplayRow]) -> impl Bundle {
             highscore_row_node(rows, 4),
         ],
     )
+}
+
+fn highscore_file_name(run_config: &RunConfig) -> String {
+    match &run_config.mode {
+        crate::run_config::PlayMode::Random => HIGHSCORE_FILE.to_string(),
+        crate::run_config::PlayMode::Campaign { .. } => {
+            format!("herder_highscores_{}.txt", run_config.score_table_id())
+        }
+    }
 }
 
 fn highscore_row_node(rows: &[HighscoreDisplayRow], index: usize) -> impl Bundle {

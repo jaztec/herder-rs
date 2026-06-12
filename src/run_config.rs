@@ -50,6 +50,27 @@ impl RunConfig {
             seed: Some(level.seed),
         }
     }
+
+    /// Stable score-table id for this run.
+    pub fn score_table_id(&self) -> String {
+        match &self.mode {
+            PlayMode::Random => "random".to_string(),
+            PlayMode::Campaign { level_index } => {
+                format!("campaign_{}", campaign_level(*level_index).id)
+            }
+        }
+    }
+
+    /// Human-readable score-table name.
+    pub fn score_table_name(&self) -> String {
+        match &self.mode {
+            PlayMode::Random => "Random Map".to_string(),
+            PlayMode::Campaign { level_index } => {
+                let level = campaign_level(*level_index);
+                format!("Campaign {}: {}", level.index + 1, level.name)
+            }
+        }
+    }
 }
 
 /// High-level mode for the active or next run.

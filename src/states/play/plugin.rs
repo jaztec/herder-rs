@@ -161,8 +161,8 @@ fn toggle_pause(
     }
 }
 
-fn setup_pause_overlay(mut commands: Commands, score: Res<HerdScore>) {
-    let highscore_text = highscore_text_for_overlay();
+fn setup_pause_overlay(mut commands: Commands, score: Res<HerdScore>, run_config: Res<RunConfig>) {
+    let highscore_text = highscore_text_for_overlay(&run_config);
 
     commands.spawn((
         PauseOverlay,
