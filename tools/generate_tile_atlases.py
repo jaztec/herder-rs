@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "textures" / "backgrounds.png"
 WATER_OUT = ROOT / "assets" / "textures" / "water_autotile.png"
 FLOWERS_OUT = ROOT / "assets" / "textures" / "flowers_autotile.png"
+PATH_OUT = ROOT / "assets" / "textures" / "path_autotile.png"
 
 TILE_SIZE = 150
 SOURCE_COLUMNS = 3
@@ -302,6 +303,73 @@ def build_water_variant(
     return output
 
 
+def path_mask(mask: int) -> list[bool]:
+    values: list[bool] = []
+    half_width = TILE_SIZE * 0.19
+    endpoint_radius = TILE_SIZE * 0.29
+    center = (TILE_SIZE - 1) / 2
+
+    for y in range(TILE_SIZE):
+        for x in range(TILE_SIZE):
+            dx = x - center
+            dy = y - center
+
+            inside = dx * dx + dy * dy <= endpoint_radius * endpoint_radius
+
+            if mask & NORTH:
+                inside = inside or (abs(dx) <= half_width and y <= center)
+            if mask & EAST:
+                inside = inside or (abs(dy) <= half_width and x >= center)
+            if mask & SOUTH:
+                inside = inside or (abs(dx) <= half_width and y >= center)
+            if mask & WEST:
+                inside = inside or (abs(dy) <= half_width and x <= center)
+
+            values.append(inside)
+
+    return values
+
+
+def build_path_variant(
+    grass: bytearray,
+    water_source: bytearray,
+    mask: int,
+) -> bytearray:
+    output = bytearray(grass)
+    dirt_samples = [
+        pixel(water_source, TILE_SIZE, x, y)
+        for y in range(TILE_SIZE)
+        for x in range(TILE_SIZE)
+        if not is_water_pixel(pixel(water_source, TILE_SIZE, x, y))
+        and color_distance(
+            pixel(water_source, TILE_SIZE, x, y),
+            pixel(grass, TILE_SIZE, x, y),
+        )
+        > 70
+    ]
+    dirt_average = average_color(dirt_samples) or (118, 82, 38, 255)
+
+    shape = path_mask(mask)
+    edge = dilate(shape, 5)
+
+    for y in range(TILE_SIZE):
+        for x in range(TILE_SIZE):
+            index = y * TILE_SIZE + x
+            grass_color = pixel(grass, TILE_SIZE, x, y)
+
+            if shape[index]:
+                sample = dirt_samples[(x * 11 + y * 29 + mask * 7) % len(dirt_samples)]
+                noise = int(9 * math.sin(x * 0.31) + 6 * math.sin(y * 0.23))
+                dirt = blend(shade(dirt_average, noise), sample, 0.38)
+                set_pixel(output, TILE_SIZE, x, y, blend(grass_color, dirt, 0.9))
+            elif edge[index]:
+                sample = dirt_samples[(x * 17 + y * 5 + mask * 13) % len(dirt_samples)]
+                dirt = blend(dirt_average, sample, 0.4)
+                set_pixel(output, TILE_SIZE, x, y, blend(grass_color, dirt, 0.45))
+
+    return output
+
+
 def hash01(x: int, y: int, seed: int) -> float:
     value = (x * 374761393 + y * 668265263 + seed * 1442695041) & 0xFFFFFFFF
     value = (value ^ (value >> 13)) * 1274126177 & 0xFFFFFFFF
@@ -400,15 +468,19 @@ def build_atlases() -> None:
     atlas_height = ATLAS_ROWS * TILE_SIZE
     water_atlas = bytearray(atlas_width * atlas_height * 4)
     flower_atlas = bytearray(atlas_width * atlas_height * 4)
+    path_atlas = bytearray(atlas_width * atlas_height * 4)
 
     for mask in range(16):
         paste_tile(water_atlas, atlas_width, build_water_variant(grass, water, mask), mask)
         paste_tile(flower_atlas, atlas_width, build_flower_variant(grass, flowers, mask), mask)
+        paste_tile(path_atlas, atlas_width, build_path_variant(grass, water, mask), mask)
 
     save_rgba(WATER_OUT, atlas_width, atlas_height, water_atlas)
     save_rgba(FLOWERS_OUT, atlas_width, atlas_height, flower_atlas)
+    save_rgba(PATH_OUT, atlas_width, atlas_height, path_atlas)
     print(f"Wrote {WATER_OUT.relative_to(ROOT)}")
     print(f"Wrote {FLOWERS_OUT.relative_to(ROOT)}")
+    print(f"Wrote {PATH_OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

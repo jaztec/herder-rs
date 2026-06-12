@@ -8,13 +8,15 @@ Current constraints:
 
 - grass is the default terrain
 - flower and water tiles are generated as blobs so adjacent tiles can merge visually
+- path tiles are generated as wandering cardinal trails and avoid overwriting water
 - the finish tile is placed at least two tiles from any edge when the map size allows it
 - on very small maps, the edge margin is reduced automatically
 - the finish tile position is stored as a resource
 
-Water and flowers are rendered with generated 4-bit autotile atlases. Neighboring
-tiles of the same type choose matching atlas frames, which lets flower patches
-cross tile borders and water groups read as ponds or lakes.
+Water, flowers, and paths are rendered with generated 4-bit autotile atlases.
+Neighboring tiles of the same type choose matching atlas frames, which lets
+flower patches cross tile borders, water groups read as ponds or lakes, and
+paths connect as straight segments, turns, T-junctions, or crossings.
 
 ## Shepherd
 

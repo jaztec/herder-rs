@@ -14,6 +14,7 @@ Important files:
 - `backgrounds.png`: source tile atlas; the game still uses its grass and finish tiles
 - `water_autotile.png`: generated 16-mask water atlas
 - `flowers_autotile.png`: generated 16-mask flower atlas
+- `path_autotile.png`: generated 16-mask dirt path atlas
 - `waypoint.png`: route marker
 - `main_header.png`: menu/header art
 - `finish_background.png`: finish-related art
@@ -30,7 +31,7 @@ This keeps pixel-art style assets crisp and avoids blurry filtering.
 
 ## Generated Terrain Atlases
 
-Water and flower autotile atlases can be regenerated from `backgrounds.png`:
+Water, flower, and path autotile atlases can be regenerated from `backgrounds.png`:
 
 ```sh
 just tiles
@@ -50,7 +51,8 @@ For example, a water tile connected north and west uses atlas index `9`.
 
 At runtime, grass and finish tiles use `backgrounds.png`. Water and flower
 tiles use the generated autotile atlases, so the original flower tile remains
-source material only.
+source material only. Path tiles also use a generated autotile atlas, derived
+from the existing dirt/bank colors in the source art.
 
 ## Sounds
 

@@ -176,6 +176,8 @@ pub enum Tile {
     Flowers,
     /// Goal tile that consumes sheep.
     Finish,
+    /// Dirt path tile that connects cardinally to neighboring paths.
+    Path,
 }
 
 impl Tile {
@@ -183,7 +185,7 @@ impl Tile {
     #[inline]
     pub fn is_walkable(&self) -> bool {
         match self {
-            Tile::Grass | Tile::Water | Tile::Flowers | Tile::Finish => true,
+            Tile::Grass | Tile::Water | Tile::Flowers | Tile::Finish | Tile::Path => true,
         }
     }
 
@@ -202,6 +204,7 @@ impl From<u32> for Tile {
             1 => Tile::Water,
             2 => Tile::Flowers,
             3 => Tile::Finish,
+            4 => Tile::Path,
             _ => Tile::Grass,
         }
     }
@@ -226,6 +229,7 @@ fn impl_from_tile_for_u32(tile: &Tile) -> u32 {
         Tile::Water => 1,
         Tile::Flowers => 2,
         Tile::Finish => 3,
+        Tile::Path => 4,
     }
 }
 
@@ -236,6 +240,7 @@ impl From<u8> for Tile {
             1 => Tile::Water,
             2 => Tile::Flowers,
             3 => Tile::Finish,
+            4 => Tile::Path,
             _ => Tile::Grass,
         }
     }
@@ -248,6 +253,7 @@ impl From<Tile> for u8 {
             Tile::Water => 1,
             Tile::Flowers => 2,
             Tile::Finish => 3,
+            Tile::Path => 4,
         }
     }
 }

@@ -12,6 +12,7 @@ const AUTOTILE_SECTION_SIZE: u32 = 150;
 const FINISH_EDGE_MARGIN_TILES: usize = 2;
 const WATER_BLOB_AREA_DIVISOR: usize = 140;
 const FLOWER_BLOB_AREA_DIVISOR: usize = 100;
+const PATH_AREA_DIVISOR: usize = 150;
 const AUTOTILE_NORTH: usize = 1;
 const AUTOTILE_EAST: usize = 2;
 const AUTOTILE_SOUTH: usize = 4;
@@ -21,6 +22,7 @@ struct TerrainAtlasHandles {
     base_texture: Handle<Image>,
     water_texture: Handle<Image>,
     flower_texture: Handle<Image>,
+    path_texture: Handle<Image>,
     base_layout: Handle<TextureAtlasLayout>,
     autotile_layout: Handle<TextureAtlasLayout>,
 }
@@ -45,6 +47,7 @@ pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
 
     let flower_blob_count = flower_blob_count(&tiles);
     let water_blob_count = water_blob_count(&tiles);
+    let path_count = path_count(&tiles);
 
     fill_tiles(&mut tiles, Tile::Grass);
     paint_tile_blobs(
@@ -61,6 +64,7 @@ pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
         2.2..=4.3,
         &mut rng,
     );
+    paint_paths(&mut tiles, path_count, &mut rng);
     tiles.set(finish_position.x, finish_position.y, Tile::Finish);
 }
 
@@ -94,6 +98,10 @@ fn flower_blob_count(tiles: &TileMap) -> usize {
     (tiles.width() * tiles.height() / FLOWER_BLOB_AREA_DIVISOR).clamp(2, 7)
 }
 
+fn path_count(tiles: &TileMap) -> usize {
+    (tiles.width() * tiles.height() / PATH_AREA_DIVISOR).clamp(2, 5)
+}
+
 fn paint_tile_blobs(
     tiles: &mut TileMap,
     tile: Tile,
@@ -121,6 +129,50 @@ fn paint_tile_blobs(
     }
 }
 
+fn paint_paths(tiles: &mut TileMap, count: usize, rng: &mut impl Rng) {
+    for _ in 0..count {
+        let mut x = rng.random_range(0..tiles.width());
+        let mut y = rng.random_range(0..tiles.height());
+        let mut direction = random_cardinal_direction(rng);
+        let steps =
+            rng.random_range(tiles.width().min(tiles.height())..=tiles.width() + tiles.height());
+
+        for _ in 0..steps {
+            if tiles.get(x, y).is_some_and(|tile| *tile != Tile::Water) {
+                tiles.set(x, y, Tile::Path);
+            }
+
+            if rng.random_bool(0.24) {
+                direction = random_cardinal_direction(rng);
+            }
+
+            match direction {
+                CardinalDirection::North => y = y.saturating_sub(1),
+                CardinalDirection::East => x = (x + 1).min(tiles.width() - 1),
+                CardinalDirection::South => y = (y + 1).min(tiles.height() - 1),
+                CardinalDirection::West => x = x.saturating_sub(1),
+            }
+        }
+    }
+}
+
+fn random_cardinal_direction(rng: &mut impl Rng) -> CardinalDirection {
+    match rng.random_range(0..4) {
+        0 => CardinalDirection::North,
+        1 => CardinalDirection::East,
+        2 => CardinalDirection::South,
+        _ => CardinalDirection::West,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CardinalDirection {
+    North,
+    East,
+    South,
+    West,
+}
+
 /// Spawn one sprite entity for each tile in the current tile map.
 pub fn draw_world(
     mut commands: Commands,
@@ -138,6 +190,7 @@ pub fn draw_world(
         base_texture: asset_server.load("textures/backgrounds.png"),
         water_texture: asset_server.load("textures/water_autotile.png"),
         flower_texture: asset_server.load("textures/flowers_autotile.png"),
+        path_texture: asset_server.load("textures/path_autotile.png"),
         base_layout: texture_atlases.add(base_texture_atlas),
         autotile_layout: texture_atlases.add(autotile_texture_atlas),
     };
@@ -186,6 +239,11 @@ fn tile_visual(
         ),
         Tile::Flowers => (
             atlases.flower_texture.clone(),
+            atlases.autotile_layout.clone(),
+            autotile_mask(tiles, x, y, tile),
+        ),
+        Tile::Path => (
+            atlases.path_texture.clone(),
             atlases.autotile_layout.clone(),
             autotile_mask(tiles, x, y, tile),
         ),
