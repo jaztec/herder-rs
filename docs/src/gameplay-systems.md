@@ -1,5 +1,16 @@
 # Gameplay Systems
 
+## Play Modes
+
+The game currently has two play modes:
+
+- Random map: configurable map size, sheep count, water amount, flower amount, and path amount.
+- Campaign: 20 deterministic generated levels played in order.
+
+Random maps use the selected settings with a fresh random seed each run.
+Campaign levels use fixed seeds so every level can have its own repeatable
+highscore table.
+
 ## Map Generation
 
 The world is a tile grid generated at the start of each run.
@@ -99,7 +110,10 @@ When all sheep are herded, the game enters the finish state. The finish screen s
 
 ## Highscores
 
-Highscores are stored locally in `herder_highscores.txt`.
+Random-map highscores are stored locally in `herder_highscores.txt`.
+Campaign levels are stored in separate `herder_highscores_campaign_*.txt`
+files. Completing the final campaign level also writes the aggregate campaign
+score and time to `herder_highscores_campaign_grand.txt`.
 
 The format is simple CSV-like text:
 

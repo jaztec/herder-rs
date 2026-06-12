@@ -11,4 +11,7 @@ mod tile;
 pub use builder::{create_world, draw_world};
 pub use camera::setup_camera;
 pub use pathfinding::find_path;
-pub use tile::{FinishTilePosition, GridPosition, MapConfig, TileMap, WorldBounds, WorldTile};
+pub use tile::{
+    DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, DEFAULT_TILE_SIZE, FinishTilePosition, GridPosition,
+    MapConfig, TileMap, WorldBounds, WorldTile,
+};

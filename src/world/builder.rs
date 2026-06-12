@@ -3,10 +3,13 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
-use rand::{Rng, seq::IteratorRandom};
+use rand::{Rng, SeedableRng, rngs::StdRng, seq::IteratorRandom};
 
-use crate::world::tile::{
-    FinishTilePosition, GridPosition, MapConfig, Tile, TileMap, WorldBounds, WorldTile,
+use crate::{
+    run_config::{RunConfig, TerrainAmount},
+    world::tile::{
+        FinishTilePosition, GridPosition, MapConfig, Tile, TileMap, WorldBounds, WorldTile,
+    },
 };
 
 const BACKGROUND_SECTION_SIZE: u32 = 150;
@@ -34,8 +37,15 @@ struct TerrainAtlasHandles {
 /// The finish tile is constrained away from the edge when the map is large
 /// enough. Its grid position is stored as a resource so scoring, indicators,
 /// and spawn placement all share the same source of truth.
-pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
-    let mut rng = rand::rng();
+pub fn create_world(
+    mut commands: Commands,
+    run_config: Res<RunConfig>,
+    mut tiles: ResMut<TileMap>,
+) {
+    let seed = run_config
+        .seed
+        .unwrap_or_else(|| rand::rng().random::<u64>());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     println!("World size: h{}-w{}", tiles.height(), tiles.width());
 
@@ -47,9 +57,9 @@ pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
         finish_position.y, finish_position.x
     );
 
-    let flower_blob_count = flower_blob_count(&tiles);
-    let water_blob_count = water_blob_count(&tiles);
-    let path_count = path_count(&tiles);
+    let flower_blob_count = flower_blob_count(&tiles, run_config.terrain.flowers);
+    let water_blob_count = water_blob_count(&tiles, run_config.terrain.water);
+    let path_count = path_count(&tiles, run_config.terrain.paths);
 
     fill_tiles(&mut tiles, Tile::Grass);
     paint_tile_blobs(
@@ -95,16 +105,29 @@ fn fill_tiles(tiles: &mut TileMap, tile: Tile) {
     }
 }
 
-fn water_blob_count(tiles: &TileMap) -> usize {
-    (tiles.width() * tiles.height() / WATER_BLOB_AREA_DIVISOR).clamp(1, 4)
+fn water_blob_count(tiles: &TileMap, amount: TerrainAmount) -> usize {
+    scaled_count(
+        (tiles.width() * tiles.height() / WATER_BLOB_AREA_DIVISOR).clamp(1, 4),
+        amount,
+    )
 }
 
-fn flower_blob_count(tiles: &TileMap) -> usize {
-    (tiles.width() * tiles.height() / FLOWER_BLOB_AREA_DIVISOR).clamp(2, 7)
+fn flower_blob_count(tiles: &TileMap, amount: TerrainAmount) -> usize {
+    scaled_count(
+        (tiles.width() * tiles.height() / FLOWER_BLOB_AREA_DIVISOR).clamp(2, 7),
+        amount,
+    )
 }
 
-fn path_count(tiles: &TileMap) -> usize {
-    (tiles.width() * tiles.height() / PATH_AREA_DIVISOR).clamp(2, 5)
+fn path_count(tiles: &TileMap, amount: TerrainAmount) -> usize {
+    scaled_count(
+        (tiles.width() * tiles.height() / PATH_AREA_DIVISOR).clamp(2, 5),
+        amount,
+    )
+}
+
+fn scaled_count(default_count: usize, amount: TerrainAmount) -> usize {
+    (default_count as f32 * amount.multiplier()).round() as usize
 }
 
 fn paint_tile_blobs(
