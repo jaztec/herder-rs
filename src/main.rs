@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use crate::plugin::HerderGame;
 
 mod plugin;
+mod run_config;
 mod states;
 mod world;
 
