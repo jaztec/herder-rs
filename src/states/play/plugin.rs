@@ -6,6 +6,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    run_config::RunConfig,
     states::{
         GameState,
         game_state::despawn_screen,
@@ -35,7 +36,7 @@ use crate::{
             },
         },
     },
-    world::{MapConfig, TileMap, WorldBounds, WorldTile, create_world, draw_world},
+    world::{TileMap, WorldBounds, WorldTile, create_world, draw_world},
 };
 
 /// Nested state for the active play session.
@@ -71,13 +72,8 @@ type PlayCleanupQuery<'w, 's> = Query<'w, 's, Entity, PlayCleanupFilter>;
 
 /// Register all play-state resources, systems, and nested plugins.
 pub fn play_state_plugin(app: &mut App) {
-    let map_config = MapConfig::default();
-
     app.add_plugins(finish_state_plugin)
         .init_state::<PlayState>()
-        .insert_resource(map_config)
-        .insert_resource(TileMap::from(&map_config))
-        .insert_resource(WorldBounds::from(&map_config))
         .init_resource::<DogRoute>()
         .init_resource::<HerdScore>()
         .add_systems(OnEnter(GameState::RestartPlay), restart_play)
@@ -85,6 +81,7 @@ pub fn play_state_plugin(app: &mut App) {
             OnEnter(GameState::Play),
             (
                 setup_play_state,
+                setup_run_resources,
                 reset_dog_route,
                 create_world,
                 setup_finish_area,
@@ -136,6 +133,12 @@ pub fn play_state_plugin(app: &mut App) {
                 .chain()
                 .run_if(in_state(PlayState::Playing)),
         );
+}
+
+fn setup_run_resources(mut commands: Commands, run_config: Res<RunConfig>) {
+    commands.insert_resource(run_config.map);
+    commands.insert_resource(TileMap::from(&run_config.map));
+    commands.insert_resource(WorldBounds::from(&run_config.map));
 }
 
 fn setup_play_state(mut game_state: ResMut<NextState<PlayState>>) {

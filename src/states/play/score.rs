@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    states::play::sheep::SHEEP_COUNT,
+    run_config::RunConfig,
     world::{FinishTilePosition, MapConfig},
 };
 
@@ -88,7 +88,7 @@ impl HerdScore {
 
 impl Default for HerdScore {
     fn default() -> Self {
-        Self::new(SHEEP_COUNT)
+        Self::new(0)
     }
 }
 
@@ -113,8 +113,8 @@ pub fn setup_finish_area(
 }
 
 /// Reset the score resource for a new run.
-pub fn setup_herd_score(mut score: ResMut<HerdScore>) {
-    *score = HerdScore::new(SHEEP_COUNT);
+pub fn setup_herd_score(mut score: ResMut<HerdScore>, run_config: Res<RunConfig>) {
+    *score = HerdScore::new(run_config.sheep_count);
 }
 
 /// Spawn the in-game score HUD.

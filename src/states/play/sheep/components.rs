@@ -2,8 +2,6 @@
 
 use bevy::prelude::*;
 
-/// Number of sheep spawned for a run.
-pub(in crate::states::play) const SHEEP_COUNT: usize = 30;
 pub(super) const SHEEP_NAME: &str = "Sheep";
 pub(super) const SHEEP_WIDTH: u32 = 75;
 pub(super) const SHEEP_HEIGHT: u32 = 60;

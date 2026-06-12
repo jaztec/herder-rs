@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use rand::{Rng, prelude::IndexedRandom};
 
 use crate::{
+    run_config::RunConfig,
     states::play::{
         common::{AnimationFrames, AnimationTimer, Facing, Moving, load_texture},
         dog::dog_spawn_position,
@@ -14,8 +15,8 @@ use crate::{
         sheep::{
             animation::{SHEEP_ANIMATION_FRAME_TIME, random_facing, standing_frame},
             components::{
-                Bravery, HERD_START_SIZE, MIN_SPAWN_EDGE_MARGIN, SHEEP_COUNT, SHEEP_HEIGHT,
-                SHEEP_NAME, SHEEP_WIDTH, SHEEP_Z, Sheep, SheepId, SheepMotion, SheepPanic, Wander,
+                Bravery, HERD_START_SIZE, MIN_SPAWN_EDGE_MARGIN, SHEEP_HEIGHT, SHEEP_NAME,
+                SHEEP_WIDTH, SHEEP_Z, Sheep, SheepId, SheepMotion, SheepPanic, Wander,
             },
             movement::clamp_position_to_world,
         },
@@ -35,6 +36,7 @@ pub(in crate::states::play) fn setup_herd(
     bounds: Res<WorldBounds>,
     config: Res<MapConfig>,
     finish: Res<FinishTilePosition>,
+    run_config: Res<RunConfig>,
     tiles: Res<TileMap>,
 ) {
     commands.spawn((Name::new("Herd"), Herd));
@@ -60,7 +62,7 @@ pub(in crate::states::play) fn setup_herd(
         &mut rng,
     );
 
-    for index in 0..SHEEP_COUNT {
+    for index in 0..run_config.sheep_count {
         let spawn_position = random_sheep_spawn_position(
             cluster_center,
             &bounds,
