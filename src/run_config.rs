@@ -85,4 +85,24 @@ impl TerrainAmount {
             Self::High => 1.55,
         }
     }
+
+    /// Return the next setting for simple menu cycling.
+    pub fn next(self) -> Self {
+        match self {
+            Self::None => Self::Low,
+            Self::Low => Self::Normal,
+            Self::Normal => Self::High,
+            Self::High => Self::None,
+        }
+    }
+
+    /// Human-readable menu label.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Low => "Low",
+            Self::Normal => "Normal",
+            Self::High => "High",
+        }
+    }
 }
