@@ -13,7 +13,7 @@ use bevy::{
 };
 
 use crate::{
-    run_config::RunConfig,
+    run_config::{CAMPAIGN_LEVELS, CampaignProgress, PlayMode, RunConfig},
     states::{GameState, game_state::despawn_screen, play::score::HerdScore},
 };
 
@@ -60,7 +60,13 @@ struct PendingHighscore {
     score: u32,
     seconds: f32,
     saved: bool,
-    saved_highscores: Option<Vec<HighscoreDisplayRow>>,
+    saved_highscores: Option<HighscoreSaveResult>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct HighscoreSaveResult {
+    title: String,
+    rows: Vec<HighscoreDisplayRow>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -96,6 +102,9 @@ struct FinishNameText;
 struct FinishInstructionText;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
+struct FinishHighscoreTitle;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component)]
 struct FinishHighscoreRow(usize);
 
 type FinishHighscoreRowsQuery<'w, 's> = Query<
@@ -115,6 +124,7 @@ type FinishUiFields<'w, 's> = ParamSet<
         Single<'w, &'static mut Text, With<FinishNameText>>,
         Single<'w, &'static mut Text, With<FinishInstructionText>>,
         FinishHighscoreRowsQuery<'w, 's>,
+        Single<'w, &'static mut Text, With<FinishHighscoreTitle>>,
     ),
 >;
 
@@ -245,7 +255,8 @@ fn handle_finished_input(
     mut keyboard_input: EventReader<KeyboardInput>,
     mut pending: ResMut<PendingHighscore>,
     mut finish_ui: FinishUi,
-    run_config: Res<RunConfig>,
+    mut run_config: ResMut<RunConfig>,
+    mut campaign_progress: ResMut<CampaignProgress>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
@@ -283,36 +294,64 @@ fn handle_finished_input(
 
     if input.just_pressed(KeyCode::Enter) {
         if pending.saved {
-            next_play_state.set(PlayState::Disabled);
-            next_game_state.set(GameState::RestartPlay);
+            continue_after_saved_score(
+                run_config.as_mut(),
+                &mut next_game_state,
+                &mut next_play_state,
+            );
         } else {
-            save_pending_highscore(&mut pending, &run_config);
+            save_pending_highscore(&mut pending, run_config.as_ref(), &mut campaign_progress);
             finish_ui.fields.p0().0 = format!("Name: {}", normalized_player_name(&pending.name));
-            finish_ui.fields.p1().0 = "Enter: new game   Esc: menu".to_string();
+            finish_ui.fields.p1().0 = saved_instruction(run_config.as_ref());
 
-            if let Some(rows) = pending.saved_highscores.clone() {
-                apply_highscore_rows(&rows, &mut finish_ui.fields.p2());
+            if let Some(result) = pending.saved_highscores.clone() {
+                finish_ui.fields.p3().0 = format!("Highscores - {}", result.title);
+                apply_highscore_rows(&result.rows, &mut finish_ui.fields.p2());
             }
         }
     } else if input.just_pressed(KeyCode::Escape) {
-        save_pending_highscore(&mut pending, &run_config);
+        save_pending_highscore(&mut pending, run_config.as_ref(), &mut campaign_progress);
         next_play_state.set(PlayState::Disabled);
         next_game_state.set(GameState::Menu);
     }
 }
 
-fn save_pending_highscore(pending: &mut PendingHighscore, run_config: &RunConfig) {
+fn save_pending_highscore(
+    pending: &mut PendingHighscore,
+    run_config: &RunConfig,
+    campaign_progress: &mut CampaignProgress,
+) {
     if pending.saved {
         return;
     }
 
     let name = normalized_player_name(&pending.name);
     match save_highscore(&name, pending.score, pending.seconds, run_config) {
-        Ok(highscores) => {
-            pending.saved_highscores = Some(highscores);
+        Ok(rows) => {
+            pending.saved_highscores = Some(HighscoreSaveResult {
+                title: run_config.score_table_name(),
+                rows,
+            });
         }
         Err(err) => {
             eprintln!("Failed to save highscore: {err}");
+        }
+    }
+
+    if matches!(run_config.mode, PlayMode::Campaign { .. }) {
+        campaign_progress.record_level(pending.score, pending.seconds);
+        if campaign_progress.is_complete() {
+            match save_grand_highscore(&name, campaign_progress) {
+                Ok(rows) => {
+                    pending.saved_highscores = Some(HighscoreSaveResult {
+                        title: "Campaign Grand".to_string(),
+                        rows,
+                    });
+                }
+                Err(err) => {
+                    eprintln!("Failed to save campaign grand highscore: {err}");
+                }
+            }
         }
     }
 
@@ -325,12 +364,21 @@ fn save_highscore(
     seconds: f32,
     run_config: &RunConfig,
 ) -> io::Result<Vec<HighscoreDisplayRow>> {
+    save_highscore_to_file(&highscore_file_name(run_config), name, score, seconds)
+}
+
+fn save_highscore_to_file(
+    file_name: &str,
+    name: &str,
+    score: u32,
+    seconds: f32,
+) -> io::Result<Vec<HighscoreDisplayRow>> {
     let current = StoredHighscore {
         name: name.to_string(),
         score,
         seconds,
     };
-    let mut highscores = read_highscores(run_config)?
+    let mut highscores = read_highscores_from_file(file_name)?
         .into_iter()
         .map(|highscore| HighscoreDisplayRow {
             name: highscore.name,
@@ -354,7 +402,7 @@ fn save_highscore(
     });
     highscores.truncate(MAX_HIGHSCORES);
 
-    let mut file = fs::File::create(highscore_file_name(run_config))?;
+    let mut file = fs::File::create(file_name)?;
     for highscore in &highscores {
         writeln!(
             file,
@@ -364,6 +412,18 @@ fn save_highscore(
     }
 
     Ok(highscores)
+}
+
+fn save_grand_highscore(
+    name: &str,
+    campaign_progress: &CampaignProgress,
+) -> io::Result<Vec<HighscoreDisplayRow>> {
+    save_highscore_to_file(
+        &campaign_grand_highscore_file_name(),
+        name,
+        campaign_progress.total_score,
+        campaign_progress.total_seconds,
+    )
 }
 
 /// Highscore list text used by overlays outside the finish screen.
@@ -376,7 +436,11 @@ pub(in crate::states::play) fn highscore_text_for_overlay(run_config: &RunConfig
 
 fn read_highscores(run_config: &RunConfig) -> io::Result<Vec<StoredHighscore>> {
     let file_name = highscore_file_name(run_config);
-    if !Path::new(&file_name).exists() {
+    read_highscores_from_file(&file_name)
+}
+
+fn read_highscores_from_file(file_name: &str) -> io::Result<Vec<StoredHighscore>> {
+    if !Path::new(file_name).exists() {
         return Ok(Vec::new());
     }
 
@@ -445,6 +509,7 @@ fn highscore_list_node(rows: &[HighscoreDisplayRow], title: &str) -> impl Bundle
         children![
             (
                 Text::new(format!("Highscores - {title}")),
+                FinishHighscoreTitle,
                 TextFont {
                     font_size: 19.0,
                     ..default()
@@ -466,6 +531,42 @@ fn highscore_file_name(run_config: &RunConfig) -> String {
         crate::run_config::PlayMode::Campaign { .. } => {
             format!("herder_highscores_{}.txt", run_config.score_table_id())
         }
+    }
+}
+
+fn campaign_grand_highscore_file_name() -> String {
+    "herder_highscores_campaign_grand.txt".to_string()
+}
+
+fn continue_after_saved_score(
+    run_config: &mut RunConfig,
+    next_game_state: &mut NextState<GameState>,
+    next_play_state: &mut NextState<PlayState>,
+) {
+    match &run_config.mode {
+        PlayMode::Random => {
+            next_play_state.set(PlayState::Disabled);
+            next_game_state.set(GameState::RestartPlay);
+        }
+        PlayMode::Campaign { level_index } => {
+            next_play_state.set(PlayState::Disabled);
+            if *level_index + 1 < CAMPAIGN_LEVELS.len() {
+                *run_config = RunConfig::from_campaign_level(*level_index + 1);
+                next_game_state.set(GameState::RestartPlay);
+            } else {
+                next_game_state.set(GameState::Menu);
+            }
+        }
+    }
+}
+
+fn saved_instruction(run_config: &RunConfig) -> String {
+    match &run_config.mode {
+        PlayMode::Random => "Enter: new game   Esc: menu".to_string(),
+        PlayMode::Campaign { level_index } if *level_index + 1 < CAMPAIGN_LEVELS.len() => {
+            "Enter: next level   Esc: menu".to_string()
+        }
+        PlayMode::Campaign { .. } => "Enter: menu   Esc: menu".to_string(),
     }
 }
 

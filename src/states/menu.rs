@@ -3,7 +3,7 @@
 use bevy::{color::palettes::css::CRIMSON, prelude::*};
 
 use crate::{
-    run_config::{PlayMode, RunConfig},
+    run_config::{CampaignProgress, PlayMode, RunConfig},
     states::{GameState, game_state::despawn_screen},
 };
 
@@ -316,6 +316,7 @@ fn menu_action(
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameState>>,
     mut run_config: ResMut<RunConfig>,
+    mut campaign_progress: ResMut<CampaignProgress>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {
         if *interaction == Interaction::Pressed {
@@ -335,6 +336,7 @@ fn menu_action(
                 }
                 MenuButtonAction::StartCampaign => {
                     *run_config = RunConfig::from_campaign_level(0);
+                    campaign_progress.reset();
                     game_state.set(GameState::Play);
                     menu_state.set(MenuState::Disabled)
                 }

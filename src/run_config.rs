@@ -73,6 +73,46 @@ impl RunConfig {
     }
 }
 
+/// Cumulative progress for the current campaign attempt.
+#[derive(Debug, Clone, PartialEq, Resource)]
+pub struct CampaignProgress {
+    /// Number of completed campaign levels in the current attempt.
+    pub completed_levels: usize,
+    /// Sum of level scores in the current attempt.
+    pub total_score: u32,
+    /// Sum of level times in the current attempt.
+    pub total_seconds: f32,
+}
+
+impl Default for CampaignProgress {
+    fn default() -> Self {
+        Self {
+            completed_levels: 0,
+            total_score: 0,
+            total_seconds: 0.0,
+        }
+    }
+}
+
+impl CampaignProgress {
+    /// Reset the campaign attempt before starting level one.
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Add a completed level to the campaign attempt.
+    pub fn record_level(&mut self, score: u32, seconds: f32) {
+        self.completed_levels += 1;
+        self.total_score += score;
+        self.total_seconds += seconds;
+    }
+
+    /// Return true when the full campaign has been completed.
+    pub fn is_complete(&self) -> bool {
+        self.completed_levels >= CAMPAIGN_LEVELS.len()
+    }
+}
+
 /// High-level mode for the active or next run.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayMode {
