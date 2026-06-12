@@ -35,6 +35,10 @@ The play state has its own nested state in `src/states/play/plugin.rs`:
 
 Gameplay systems run only while `PlayState::Playing` is active. Pause and finish overlays are separate state-driven UI screens.
 
+`RunConfig` describes the next play session. The menu writes it, and play setup
+reads it to create `MapConfig`, `TileMap`, `WorldBounds`, sheep count, terrain
+density, play mode, and optional deterministic map seed.
+
 ## World
 
 `src/world` owns map-related code:
@@ -43,7 +47,7 @@ Gameplay systems run only while `PlayState::Playing` is active. Pause and finish
 - `builder.rs`: procedural map generation and tile entity spawning
 - `camera.rs`: 2D camera setup
 
-The map is generated from `MapConfig`. The finish tile is stored as a `FinishTilePosition` resource so scoring, indicators, and spawning can use the same source of truth.
+The map is generated from `MapConfig` and `TerrainConfig`. The finish tile is stored as a `FinishTilePosition` resource so scoring, indicators, and spawning can use the same source of truth.
 
 ## Play Systems
 

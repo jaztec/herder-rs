@@ -29,6 +29,8 @@ just run
 
 ## Current Features
 
+- Random map mode with configurable map size, sheep count, and terrain amounts
+- Campaign mode with 20 deterministic generated levels
 - Procedural tile map with finish placement constraints
 - Generated autotile terrain for grass, flowers, water, and paths
 - Terrain walkability and movement-speed rules
@@ -39,7 +41,7 @@ just run
 - Sheep flocking, fear propagation, bravery, wandering, and finish scoring
 - Off-screen indicators for finish, dog, and sheep clusters
 - Pause and finish overlays
-- Local highscores with player names
+- Local highscores with player names, including campaign level tables and a campaign grand table
 
 ## Project Layout
 
@@ -72,4 +74,4 @@ just docs-code-open
 
 If `mdbook` is not installed, run `cargo install mdbook`.
 
-Highscores are stored locally in `herder_highscores.txt`.
+Random-map highscores are stored locally in `herder_highscores.txt`. Campaign levels use their own `herder_highscores_campaign_*.txt` files, plus `herder_highscores_campaign_grand.txt` for completed campaign attempts.

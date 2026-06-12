@@ -27,7 +27,7 @@ Play entities are cleaned up when leaving `GameState::Play`. This includes map t
 
 ## Local Runtime Files
 
-`herder_highscores.txt` is a local runtime file. It should not be treated as source data.
+`herder_highscores.txt` and `herder_highscores_campaign_*.txt` are local runtime files. They should not be treated as source data.
 
 ## Generated Code Docs
 
