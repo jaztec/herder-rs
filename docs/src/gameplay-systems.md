@@ -41,6 +41,12 @@ The shepherd is controlled with `WASD`. The camera follows the shepherd and supp
 
 The dog starts near the shepherd. Dragging with the left mouse button creates a route made of waypoint entities. The dog follows those waypoints and can play bark sounds when commanded.
 
+Dog routes use A* pathfinding over a 3x3 subgrid inside every terrain tile. The
+cursor points are treated as requested targets; the actual route is expanded
+into walkable sub-tile centers, simplified to corner waypoints, and will avoid
+water. The pathfinder still uses the parent terrain tile for movement cost, so
+paths are favored over grass and flowers are less attractive.
+
 The herd cannot spawn on the same tile as the shepherd or the dog.
 
 ## Sheep

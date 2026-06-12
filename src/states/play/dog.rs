@@ -13,7 +13,7 @@ use crate::{
         },
         shepherd::Shepherd,
     },
-    world::{MapConfig, TileMap, WorldBounds},
+    world::{MapConfig, TileMap, WorldBounds, find_path},
 };
 
 /// Marker component for the dog entity.
@@ -158,7 +158,7 @@ pub struct DogRouteInputParams<'w> {
     config: Res<'w, MapConfig>,
     tiles: Res<'w, TileMap>,
     route: ResMut<'w, DogRoute>,
-    dog_mode: Single<'w, &'static mut DogMode, With<Dog>>,
+    dog: Single<'w, (&'static mut DogMode, &'static Transform), With<Dog>>,
     dog_audio: Res<'w, DogAudio>,
 }
 
@@ -201,9 +201,10 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
         config,
         tiles,
         mut route,
-        mut dog_mode,
+        mut dog,
         dog_audio,
     } = input;
+    let dog_position = dog.1.translation.truncate();
 
     if buttons.just_pressed(MouseButton::Left) {
         clear_route(&mut commands, &mut route);
@@ -219,6 +220,7 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
                     tiles: &tiles,
                 },
                 &mut route,
+                dog_position,
                 position,
                 true,
             );
@@ -238,6 +240,7 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
                 tiles: &tiles,
             },
             &mut route,
+            dog_position,
             position,
             false,
         );
@@ -254,6 +257,7 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
                     tiles: &tiles,
                 },
                 &mut route,
+                dog_position,
                 position,
                 true,
             );
@@ -261,20 +265,20 @@ pub fn handle_dog_route_input(mut commands: Commands, input: DogRouteInputParams
 
         route.is_drawing = false;
         if route.has_points() {
-            **dog_mode = DogMode::FollowingRoute;
+            *dog.0 = DogMode::FollowingRoute;
         }
     }
 
     if buttons.just_pressed(MouseButton::Right) {
         if route.is_drawing || route.has_points() {
             clear_route(&mut commands, &mut route);
-            if **dog_mode == DogMode::FollowingRoute {
-                **dog_mode = DogMode::FollowingShepherd;
+            if *dog.0 == DogMode::FollowingRoute {
+                *dog.0 = DogMode::FollowingShepherd;
             }
             return;
         }
 
-        **dog_mode = match **dog_mode {
+        *dog.0 = match *dog.0 {
             DogMode::Stopped => DogMode::FollowingShepherd,
             DogMode::FollowingShepherd | DogMode::FollowingRoute => DogMode::Stopped,
         };
@@ -465,6 +469,7 @@ fn add_waypoint(
     asset_server: &AssetServer,
     terrain: WaypointTerrain,
     route: &mut DogRoute,
+    dog_position: Vec2,
     position: Vec2,
     force: bool,
 ) {
@@ -485,6 +490,33 @@ fn add_waypoint(
         if force && last.position.distance(position) < DOG_WAYPOINT_RADIUS {
             return;
         }
+    }
+
+    let start = route
+        .points
+        .back()
+        .map_or(dog_position, |point| point.position);
+    let Some(path) = find_path(terrain.tiles, terrain.config, start, position) else {
+        return;
+    };
+
+    for position in path {
+        push_route_point(commands, asset_server, route, position);
+    }
+}
+
+fn push_route_point(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    route: &mut DogRoute,
+    position: Vec2,
+) {
+    if route
+        .points
+        .back()
+        .is_some_and(|point| point.position.distance(position) < DOG_WAYPOINT_RADIUS)
+    {
+        return;
     }
 
     let marker = commands
