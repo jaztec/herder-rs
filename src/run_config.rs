@@ -353,6 +353,10 @@ pub fn campaign_level(level_index: usize) -> CampaignLevel {
     CAMPAIGN_LEVELS[level_index.min(CAMPAIGN_LEVELS.len() - 1)]
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "campaign level data is clearer as a compact table"
+)]
 const fn campaign_level_definition(
     index: usize,
     id: &'static str,

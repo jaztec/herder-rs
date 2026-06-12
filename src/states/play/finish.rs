@@ -255,10 +255,7 @@ fn handle_finished_input(
     mut keyboard_input: EventReader<KeyboardInput>,
     mut pending: ResMut<PendingHighscore>,
     mut finish_ui: FinishUi,
-    mut run_config: ResMut<RunConfig>,
-    mut campaign_progress: ResMut<CampaignProgress>,
-    mut next_game_state: ResMut<NextState<GameState>>,
-    mut next_play_state: ResMut<NextState<PlayState>>,
+    mut flow: FinishFlowParams,
 ) {
     if !pending.saved {
         for event in keyboard_input.read() {
@@ -295,14 +292,18 @@ fn handle_finished_input(
     if input.just_pressed(KeyCode::Enter) {
         if pending.saved {
             continue_after_saved_score(
-                run_config.as_mut(),
-                &mut next_game_state,
-                &mut next_play_state,
+                flow.run_config.as_mut(),
+                &mut flow.next_game_state,
+                &mut flow.next_play_state,
             );
         } else {
-            save_pending_highscore(&mut pending, run_config.as_ref(), &mut campaign_progress);
+            save_pending_highscore(
+                &mut pending,
+                flow.run_config.as_ref(),
+                &mut flow.campaign_progress,
+            );
             finish_ui.fields.p0().0 = format!("Name: {}", normalized_player_name(&pending.name));
-            finish_ui.fields.p1().0 = saved_instruction(run_config.as_ref());
+            finish_ui.fields.p1().0 = saved_instruction(flow.run_config.as_ref());
 
             if let Some(result) = pending.saved_highscores.clone() {
                 finish_ui.fields.p3().0 = format!("Highscores - {}", result.title);
@@ -310,10 +311,22 @@ fn handle_finished_input(
             }
         }
     } else if input.just_pressed(KeyCode::Escape) {
-        save_pending_highscore(&mut pending, run_config.as_ref(), &mut campaign_progress);
-        next_play_state.set(PlayState::Disabled);
-        next_game_state.set(GameState::Menu);
+        save_pending_highscore(
+            &mut pending,
+            flow.run_config.as_ref(),
+            &mut flow.campaign_progress,
+        );
+        flow.next_play_state.set(PlayState::Disabled);
+        flow.next_game_state.set(GameState::Menu);
     }
+}
+
+#[derive(SystemParam)]
+struct FinishFlowParams<'w> {
+    run_config: ResMut<'w, RunConfig>,
+    campaign_progress: ResMut<'w, CampaignProgress>,
+    next_game_state: ResMut<'w, NextState<GameState>>,
+    next_play_state: ResMut<'w, NextState<PlayState>>,
 }
 
 fn save_pending_highscore(
