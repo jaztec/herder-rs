@@ -35,6 +35,7 @@ struct OnRandomSetupScreen;
 enum MenuButtonAction {
     OpenRandomSetup,
     StartRandom,
+    StartCampaign,
     CycleMapSize,
     CycleSheepCount,
     CycleTerrain(TerrainOption),
@@ -164,6 +165,17 @@ fn main_setup(mut commands: Commands) {
                     MenuButtonAction::OpenRandomSetup,
                     children![(
                         Text::new("Random Map"),
+                        button_text_font.clone(),
+                        TextColor(TEXT_COLOR),
+                    ),]
+                ),
+                (
+                    Button,
+                    button_node.clone(),
+                    BackgroundColor(NORMAL_BUTTON),
+                    MenuButtonAction::StartCampaign,
+                    children![(
+                        Text::new("Campaign"),
                         button_text_font.clone(),
                         TextColor(TEXT_COLOR),
                     ),]
@@ -317,6 +329,12 @@ fn menu_action(
                 }
                 MenuButtonAction::StartRandom => {
                     run_config.mode = PlayMode::Random;
+                    run_config.seed = None;
+                    game_state.set(GameState::Play);
+                    menu_state.set(MenuState::Disabled)
+                }
+                MenuButtonAction::StartCampaign => {
+                    *run_config = RunConfig::from_campaign_level(0);
                     game_state.set(GameState::Play);
                     menu_state.set(MenuState::Disabled)
                 }

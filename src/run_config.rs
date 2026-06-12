@@ -15,6 +15,8 @@ pub struct RunConfig {
     pub sheep_count: usize,
     /// Terrain generation density settings.
     pub terrain: TerrainConfig,
+    /// Optional deterministic generation seed.
+    pub seed: Option<u64>,
 }
 
 impl Default for RunConfig {
@@ -28,6 +30,24 @@ impl Default for RunConfig {
             },
             sheep_count: 30,
             terrain: TerrainConfig::default(),
+            seed: None,
+        }
+    }
+}
+
+impl RunConfig {
+    /// Build a run config for a campaign level.
+    pub fn from_campaign_level(level_index: usize) -> Self {
+        let level = campaign_level(level_index);
+
+        Self {
+            mode: PlayMode::Campaign {
+                level_index: level.index,
+            },
+            map: level.map,
+            sheep_count: level.sheep_count,
+            terrain: level.terrain,
+            seed: Some(level.seed),
         }
     }
 }
@@ -59,6 +79,289 @@ impl Default for TerrainConfig {
             flowers: TerrainAmount::Normal,
             paths: TerrainAmount::Normal,
         }
+    }
+}
+
+/// Fixed campaign level definition.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CampaignLevel {
+    /// Zero-based campaign index.
+    pub index: usize,
+    /// Stable identifier for save data and highscores.
+    pub id: &'static str,
+    /// Display name.
+    pub name: &'static str,
+    /// Deterministic map-generation seed.
+    pub seed: u64,
+    /// Level map dimensions.
+    pub map: MapConfig,
+    /// Number of sheep in this level.
+    pub sheep_count: usize,
+    /// Terrain generation density.
+    pub terrain: TerrainConfig,
+}
+
+/// Campaign maps in order.
+pub const CAMPAIGN_LEVELS: [CampaignLevel; 20] = [
+    campaign_level_definition(
+        0,
+        "meadow-1",
+        "Meadow Start",
+        10_001,
+        18,
+        14,
+        18,
+        low_terrain(),
+    ),
+    campaign_level_definition(
+        1,
+        "meadow-2",
+        "Wide Meadow",
+        10_113,
+        20,
+        15,
+        20,
+        low_terrain(),
+    ),
+    campaign_level_definition(
+        2,
+        "pond-1",
+        "First Pond",
+        10_229,
+        22,
+        16,
+        22,
+        normal_terrain(),
+    ),
+    campaign_level_definition(3, "path-1", "Old Track", 10_337, 22, 16, 24, path_terrain()),
+    campaign_level_definition(
+        4,
+        "flowers-1",
+        "Flower Field",
+        10_441,
+        24,
+        18,
+        26,
+        flower_terrain(),
+    ),
+    campaign_level_definition(
+        5,
+        "pond-2",
+        "Twin Ponds",
+        10_559,
+        24,
+        18,
+        28,
+        normal_terrain(),
+    ),
+    campaign_level_definition(6, "path-2", "Long Path", 10_667, 26, 18, 30, path_terrain()),
+    campaign_level_definition(
+        7,
+        "water-1",
+        "Wet Grass",
+        10_771,
+        26,
+        20,
+        32,
+        water_terrain(),
+    ),
+    campaign_level_definition(
+        8,
+        "mixed-1",
+        "Broken Ground",
+        10_889,
+        28,
+        20,
+        34,
+        normal_terrain(),
+    ),
+    campaign_level_definition(
+        9,
+        "flowers-2",
+        "Heavy Flowers",
+        10_991,
+        28,
+        20,
+        36,
+        flower_terrain(),
+    ),
+    campaign_level_definition(
+        10,
+        "path-3",
+        "Cross Roads",
+        11_107,
+        30,
+        21,
+        38,
+        path_terrain(),
+    ),
+    campaign_level_definition(
+        11,
+        "water-2",
+        "Lake Edge",
+        11_213,
+        30,
+        21,
+        40,
+        water_terrain(),
+    ),
+    campaign_level_definition(
+        12,
+        "mixed-2",
+        "Far Pasture",
+        11_327,
+        30,
+        22,
+        42,
+        normal_terrain(),
+    ),
+    campaign_level_definition(
+        13,
+        "pond-3",
+        "Deep Ponds",
+        11_431,
+        32,
+        22,
+        44,
+        water_terrain(),
+    ),
+    campaign_level_definition(
+        14,
+        "flowers-3",
+        "Slow Bloom",
+        11_543,
+        32,
+        22,
+        46,
+        flower_terrain(),
+    ),
+    campaign_level_definition(
+        15,
+        "path-4",
+        "Fast Lanes",
+        11_659,
+        34,
+        23,
+        48,
+        path_terrain(),
+    ),
+    campaign_level_definition(
+        16,
+        "mixed-3",
+        "Open Range",
+        11_761,
+        34,
+        24,
+        50,
+        normal_terrain(),
+    ),
+    campaign_level_definition(
+        17,
+        "water-3",
+        "Marshlands",
+        11_879,
+        36,
+        24,
+        52,
+        water_terrain(),
+    ),
+    campaign_level_definition(
+        18,
+        "mixed-4",
+        "Final Drive",
+        11_983,
+        36,
+        25,
+        55,
+        normal_terrain(),
+    ),
+    campaign_level_definition(
+        19,
+        "final",
+        "The Big Herd",
+        12_101,
+        38,
+        26,
+        60,
+        hard_terrain(),
+    ),
+];
+
+/// Return a campaign level, clamped to the available campaign range.
+pub fn campaign_level(level_index: usize) -> CampaignLevel {
+    CAMPAIGN_LEVELS[level_index.min(CAMPAIGN_LEVELS.len() - 1)]
+}
+
+const fn campaign_level_definition(
+    index: usize,
+    id: &'static str,
+    name: &'static str,
+    seed: u64,
+    width: usize,
+    height: usize,
+    sheep_count: usize,
+    terrain: TerrainConfig,
+) -> CampaignLevel {
+    CampaignLevel {
+        index,
+        id,
+        name,
+        seed,
+        map: MapConfig {
+            width,
+            height,
+            tile_size: DEFAULT_TILE_SIZE,
+        },
+        sheep_count,
+        terrain,
+    }
+}
+
+const fn low_terrain() -> TerrainConfig {
+    TerrainConfig {
+        water: TerrainAmount::Low,
+        flowers: TerrainAmount::Low,
+        paths: TerrainAmount::Normal,
+    }
+}
+
+const fn normal_terrain() -> TerrainConfig {
+    TerrainConfig {
+        water: TerrainAmount::Normal,
+        flowers: TerrainAmount::Normal,
+        paths: TerrainAmount::Normal,
+    }
+}
+
+const fn path_terrain() -> TerrainConfig {
+    TerrainConfig {
+        water: TerrainAmount::Low,
+        flowers: TerrainAmount::Normal,
+        paths: TerrainAmount::High,
+    }
+}
+
+const fn flower_terrain() -> TerrainConfig {
+    TerrainConfig {
+        water: TerrainAmount::Low,
+        flowers: TerrainAmount::High,
+        paths: TerrainAmount::Normal,
+    }
+}
+
+const fn water_terrain() -> TerrainConfig {
+    TerrainConfig {
+        water: TerrainAmount::High,
+        flowers: TerrainAmount::Normal,
+        paths: TerrainAmount::Normal,
+    }
+}
+
+const fn hard_terrain() -> TerrainConfig {
+    TerrainConfig {
+        water: TerrainAmount::High,
+        flowers: TerrainAmount::High,
+        paths: TerrainAmount::Low,
     }
 }
 

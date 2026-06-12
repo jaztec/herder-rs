@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
-use rand::{Rng, seq::IteratorRandom};
+use rand::{Rng, SeedableRng, rngs::StdRng, seq::IteratorRandom};
 
 use crate::{
     run_config::{RunConfig, TerrainAmount},
@@ -42,7 +42,10 @@ pub fn create_world(
     run_config: Res<RunConfig>,
     mut tiles: ResMut<TileMap>,
 ) {
-    let mut rng = rand::rng();
+    let seed = run_config
+        .seed
+        .unwrap_or_else(|| rand::rng().random::<u64>());
+    let mut rng = StdRng::seed_from_u64(seed);
 
     println!("World size: h{}-w{}", tiles.height(), tiles.width());
 
