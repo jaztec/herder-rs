@@ -1,14 +1,29 @@
 //! Procedural world creation and tile rendering systems.
 
 use bevy::prelude::*;
-use rand::seq::{IndexedRandom, IteratorRandom};
+use rand::{Rng, seq::IteratorRandom};
 
 use crate::world::tile::{
-    FinishTilePosition, GridPosition, MapConfig, TileMap, WorldBounds, WorldTile,
+    FinishTilePosition, GridPosition, MapConfig, Tile, TileMap, WorldBounds, WorldTile,
 };
 
 const BACKGROUND_SECTION_SIZE: u32 = 150;
+const AUTOTILE_SECTION_SIZE: u32 = 150;
 const FINISH_EDGE_MARGIN_TILES: usize = 2;
+const WATER_BLOB_AREA_DIVISOR: usize = 140;
+const FLOWER_BLOB_AREA_DIVISOR: usize = 100;
+const AUTOTILE_NORTH: usize = 1;
+const AUTOTILE_EAST: usize = 2;
+const AUTOTILE_SOUTH: usize = 4;
+const AUTOTILE_WEST: usize = 8;
+
+struct TerrainAtlasHandles {
+    base_texture: Handle<Image>,
+    water_texture: Handle<Image>,
+    flower_texture: Handle<Image>,
+    base_layout: Handle<TextureAtlasLayout>,
+    autotile_layout: Handle<TextureAtlasLayout>,
+}
 
 /// Fill the tile map for a new run and choose a finish tile.
 ///
@@ -28,19 +43,25 @@ pub fn create_world(mut commands: Commands, mut tiles: ResMut<TileMap>) {
         finish_position.y, finish_position.x
     );
 
-    for y in 0..tiles.height() {
-        for x in 0..tiles.width() {
-            let tile_options = [0_u32, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2];
-            let tile_index = tile_options.choose(&mut rng).unwrap();
-            let mut index = *tile_index;
+    let flower_blob_count = flower_blob_count(&tiles);
+    let water_blob_count = water_blob_count(&tiles);
 
-            if y == finish_position.y && x == finish_position.x {
-                index = 3;
-            }
-
-            tiles.set(x, y, index);
-        }
-    }
+    fill_tiles(&mut tiles, Tile::Grass);
+    paint_tile_blobs(
+        &mut tiles,
+        Tile::Flowers,
+        flower_blob_count,
+        1.4..=3.0,
+        &mut rng,
+    );
+    paint_tile_blobs(
+        &mut tiles,
+        Tile::Water,
+        water_blob_count,
+        2.2..=4.3,
+        &mut rng,
+    );
+    tiles.set(finish_position.x, finish_position.y, Tile::Finish);
 }
 
 fn random_finish_position(tiles: &TileMap, rng: &mut impl rand::Rng) -> FinishTilePosition {
@@ -57,6 +78,49 @@ fn edge_margin_for(size: usize, preferred_margin: usize) -> usize {
     preferred_margin.min(size.saturating_sub(1) / 2)
 }
 
+fn fill_tiles(tiles: &mut TileMap, tile: Tile) {
+    for y in 0..tiles.height() {
+        for x in 0..tiles.width() {
+            tiles.set(x, y, tile);
+        }
+    }
+}
+
+fn water_blob_count(tiles: &TileMap) -> usize {
+    (tiles.width() * tiles.height() / WATER_BLOB_AREA_DIVISOR).clamp(1, 4)
+}
+
+fn flower_blob_count(tiles: &TileMap) -> usize {
+    (tiles.width() * tiles.height() / FLOWER_BLOB_AREA_DIVISOR).clamp(2, 7)
+}
+
+fn paint_tile_blobs(
+    tiles: &mut TileMap,
+    tile: Tile,
+    count: usize,
+    radius_range: std::ops::RangeInclusive<f32>,
+    rng: &mut impl Rng,
+) {
+    for _ in 0..count {
+        let center_x = rng.random_range(0..tiles.width()) as f32;
+        let center_y = rng.random_range(0..tiles.height()) as f32;
+        let radius_x = rng.random_range(radius_range.clone());
+        let radius_y = rng.random_range(radius_range.clone());
+
+        for y in 0..tiles.height() {
+            for x in 0..tiles.width() {
+                let dx = (x as f32 - center_x) / radius_x;
+                let dy = (y as f32 - center_y) / radius_y;
+                let wobble = 0.16 * ((x as f32 * 1.7 + y as f32 * 0.9).sin());
+
+                if dx * dx + dy * dy <= 1.0 + wobble {
+                    tiles.set(x, y, tile);
+                }
+            }
+        }
+    }
+}
+
 /// Spawn one sprite entity for each tile in the current tile map.
 pub fn draw_world(
     mut commands: Commands,
@@ -66,10 +130,17 @@ pub fn draw_world(
     config: Res<MapConfig>,
     mut bounds: ResMut<WorldBounds>,
 ) {
-    let texture_handle = asset_server.load("textures/backgrounds.png");
-    let texture_atlas =
+    let base_texture_atlas =
         TextureAtlasLayout::from_grid(UVec2::splat(BACKGROUND_SECTION_SIZE), 3, 3, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    let autotile_texture_atlas =
+        TextureAtlasLayout::from_grid(UVec2::splat(AUTOTILE_SECTION_SIZE), 4, 4, None, None);
+    let terrain_atlases = TerrainAtlasHandles {
+        base_texture: asset_server.load("textures/backgrounds.png"),
+        water_texture: asset_server.load("textures/water_autotile.png"),
+        flower_texture: asset_server.load("textures/flowers_autotile.png"),
+        base_layout: texture_atlases.add(base_texture_atlas),
+        autotile_layout: texture_atlases.add(autotile_texture_atlas),
+    };
 
     bounds.size = config.world_size();
 
@@ -79,8 +150,10 @@ pub fn draw_world(
                 continue;
             };
 
-            let mut atlas = TextureAtlas::from(texture_atlas_handle.clone());
-            atlas.index = tile.index();
+            let (texture, layout, index) = tile_visual(&tiles, x, y, *tile, &terrain_atlases);
+
+            let mut atlas = TextureAtlas::from(layout);
+            atlas.index = index;
 
             commands.spawn((
                 WorldTile,
@@ -88,10 +161,66 @@ pub fn draw_world(
                 GridPosition { x, y },
                 Sprite {
                     custom_size: Some(Vec2::splat(config.tile_size)),
-                    ..Sprite::from_atlas_image(texture_handle.clone(), atlas)
+                    ..Sprite::from_atlas_image(texture, atlas)
                 },
                 Transform::from_translation(config.tile_world_position(x, y)),
             ));
         }
     }
+}
+
+fn tile_visual(
+    tiles: &TileMap,
+    x: usize,
+    y: usize,
+    tile: Tile,
+    atlases: &TerrainAtlasHandles,
+) -> (Handle<Image>, Handle<TextureAtlasLayout>, usize) {
+    match tile {
+        Tile::Grass => (atlases.base_texture.clone(), atlases.base_layout.clone(), 0),
+        Tile::Finish => (atlases.base_texture.clone(), atlases.base_layout.clone(), 3),
+        Tile::Water => (
+            atlases.water_texture.clone(),
+            atlases.autotile_layout.clone(),
+            autotile_mask(tiles, x, y, tile),
+        ),
+        Tile::Flowers => (
+            atlases.flower_texture.clone(),
+            atlases.autotile_layout.clone(),
+            autotile_mask(tiles, x, y, tile),
+        ),
+    }
+}
+
+fn autotile_mask(tiles: &TileMap, x: usize, y: usize, tile: Tile) -> usize {
+    let mut mask = 0;
+
+    if y > 0
+        && tiles
+            .get(x, y - 1)
+            .is_some_and(|neighbor| *neighbor == tile)
+    {
+        mask |= AUTOTILE_NORTH;
+    }
+    if tiles
+        .get(x + 1, y)
+        .is_some_and(|neighbor| *neighbor == tile)
+    {
+        mask |= AUTOTILE_EAST;
+    }
+    if tiles
+        .get(x, y + 1)
+        .is_some_and(|neighbor| *neighbor == tile)
+    {
+        mask |= AUTOTILE_SOUTH;
+    }
+    if x > 0
+        && tiles
+            .get(x - 1, y)
+            .is_some_and(|neighbor| *neighbor == tile)
+    {
+        mask |= AUTOTILE_WEST;
+    }
+
+    mask
 }

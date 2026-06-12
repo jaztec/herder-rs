@@ -16,3 +16,6 @@ docs-code-open:
 docs-all:
     mdbook build
     cargo doc --no-deps --document-private-items
+
+tiles:
+    python3 tools/generate_tile_atlases.py

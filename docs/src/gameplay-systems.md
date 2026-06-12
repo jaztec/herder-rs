@@ -6,9 +6,15 @@ The world is a tile grid generated at the start of each run.
 
 Current constraints:
 
+- grass is the default terrain
+- flower and water tiles are generated as blobs so adjacent tiles can merge visually
 - the finish tile is placed at least two tiles from any edge when the map size allows it
 - on very small maps, the edge margin is reduced automatically
 - the finish tile position is stored as a resource
+
+Water and flowers are rendered with generated 4-bit autotile atlases. Neighboring
+tiles of the same type choose matching atlas frames, which lets flower patches
+cross tile borders and water groups read as ponds or lakes.
 
 ## Shepherd
 
